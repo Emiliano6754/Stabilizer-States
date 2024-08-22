@@ -5,6 +5,7 @@
 #include<algorithm>
 #include<bitset> // Print numbers as binary easily
 #include<filesystem> // Current directory
+#include<chrono> // Timing
 #include<Eigen/Dense>
 #include<unsupported/Eigen/CXX11/Tensor>
 
@@ -28,20 +29,26 @@ void generate_stack_xi_buffer(double* xi_buffer, const unsigned int &max_weight,
     }
 }
 
-void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const std::vector<unsigned int> &Adj) {
+unsigned int get_max_degree(const unsigned int* Adj, const unsigned int &n_qubits) {
+    unsigned int max = 0;
+    for (unsigned int n = 0; n < n_qubits; n++) {
+        if (max < std::popcount(Adj[n])) {
+            max = std::popcount(Adj[n]);
+        }
+    }
+    return max;
+}
+
+void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* Adj) {
     const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
     const double xi_sum = 2 * xi.real();
-    const unsigned int max_weight = std::popcount(*std::max_element(Adj.begin(), Adj.end(), [](const unsigned int &a, const unsigned int &b)
-    {
-        return std::popcount(a) < std::popcount(b);
-    }));
+    const unsigned int max_weight = get_max_degree(Adj,n_qubits);
     double* xi_buffer = static_cast<double*>(alloca((max_weight+1) * sizeof(double)));
     generate_stack_xi_buffer(xi_buffer,max_weight,xi);
 
     #pragma omp parallel
     {
         double coeff = 0;
-        double hola = 0;
         #pragma omp for
         for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
             for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
@@ -57,34 +64,45 @@ void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const un
     
 }
 
-// inline void addEdge(std::vector<std::vector<unsigned int>>& Adj, const unsigned int& a, const unsigned int& b) {
-//     if (Adj.size() < a+1 || Adj.size() < b+1 || Adj[b].size() < a+1 || Adj[a].size() < b+1) {
-//         std::cout << "Edges outside bounds" << std::endl;
-//     } else {
-//         Adj[a][b] = 1;
-//         Adj[b][a] = 1;
-//     }
-// }
+void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* Adj) {
+    const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
+    const double xi_sum = 2 * xi.real();
+    const unsigned int max_weight = get_max_degree(Adj,n_qubits);
+    double* xi_buffer = static_cast<double*>(alloca((max_weight+1) * sizeof(double)));
+    generate_stack_xi_buffer(xi_buffer,max_weight,xi);
 
-// std::vector<std::vector<unsigned int>> initAdj(const unsigned int& size, const unsigned int def=0) {
-//     std::vector<std::vector<unsigned int>> Adj(size);
-//     Adj.assign(size, std::vector<unsigned int>(size));
-//     return Adj;
-// }
+    #pragma omp parallel
+    {
+        double coeff = 0;
+        #pragma omp for
+        for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
+            for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
+                coeff = 1;
+                for (unsigned int j = 0; j < n_qubits; j++) {
+                    coeff *= 1 + int(1 - 2 * ((alpha>>j) & 1)) * (1 - 2 * trace(Adj[j],beta)) * xi_buffer[std::popcount(Adj[j])] * xi_sum;
+                }
+                sym_Qfunc(std::popcount(alpha),std::popcount(beta),std::popcount(alpha^beta)) += coeff / qubitstate_size;
+            }
+        }
+    }
+    
+}
 
 // Initializes adjacency matrix, def controls whether all edges are connected or disconnected, with disconnected as default
-inline void initAdj(std::vector<unsigned int> &Adj, const unsigned int &size, const unsigned int def=0) {
+inline void initAdj(unsigned int* Adj, const unsigned int &size, const unsigned int def=0) {
     if (size > 8*sizeof(unsigned int)) {
         std::cout << "Too many qubits, change unsigned int in adjacency matrices to use more" << std::endl;
     } else {
         unsigned int connection = (1 << (def * size)) - 1;
-        Adj.assign(size,connection);
+        for (unsigned int i = 0; i < size; i++) {
+            Adj[i] = connection;
+        }
     }
 }
 
 // Adds (or removes if already present) edge (a,b) from the adjacency matrix. Edges (a,a) can't be added by this function, which is wanted behavior as we only allow simple graphs
-inline void addEdge(std::vector<unsigned int> &Adj, const unsigned int &a, const unsigned int &b) {
-    if (Adj.size() < a+1 || Adj.size() < b+1) {
+inline void addEdge(unsigned int* Adj, const unsigned int &size, const unsigned int &a, const unsigned int &b) {
+    if (size < a+1 || size < b+1) {
         std::cout << "Edges outside bounds" << std::endl;
     } else {
         Adj[a] = Adj[a] ^ (1 << b);
@@ -119,23 +137,39 @@ void save_symQfunc(const Eigen::Tensor<double,3> &Qfunc, const std::string &file
     }
 }
 
-int main() {
-    const unsigned int n_qubits = 5;
+void generate_maxcon_symQ(const unsigned int &n_qubits) {
     const unsigned int qubitstate_size = 1 << n_qubits;
-    std::vector<unsigned int> Adj(n_qubits);
-    initAdj(Adj,n_qubits,0);
-    addEdge(Adj, 0, 2);
-    // addEdge(Adj, 1, 3);
-    // addEdge(Adj, 1, 4);
-    // addEdge(Adj, 1, 5);
-    // addEdge(Adj, 2, 6);
-    // addEdge(Adj, 2, 3);
-    // addEdge(Adj, 4, 3);
-    Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    initAdj(Adj,n_qubits,1);
     Eigen::Tensor<double,3> sym_Qfunc(n_qubits,n_qubits,n_qubits);
-    graphQ(Qfunc, sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
-    save_Qfunc(Qfunc, "test.txt");
-    save_symQfunc(sym_Qfunc,"symtest.txt");
+    auto start = std::chrono::high_resolution_clock::now();
+    symonly_graphQ(sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> duration = end - start;
+    std::cout << "Calculating took " << duration.count() << "s" << std::endl;
+    save_symQfunc(sym_Qfunc,"mc_q"+std::to_string(n_qubits)+".txt");
+}
 
+unsigned int parse_unsignedint(const std::string &input) {
+    try {
+        unsigned long u = std::stoul(input);
+        if (u > std::numeric_limits<unsigned int>::max())
+            throw std::out_of_range(input);
+
+        return u;
+    } catch (const std::invalid_argument& e) {
+        std::cout << "Input could not be parsed: " << e.what() << std::endl;
+    } catch (const std::out_of_range& e) {
+        std::cout << "Input out of range: " << e.what() << std::endl;
+    }
+    return 0;
+}
+
+int main() {
+    std::string input;
+    std::cout << "Enter the number of qubits" << std::endl;
+    std::cin >> input;
+    unsigned int n_qubits = parse_unsignedint(input);
+    generate_maxcon_symQ(n_qubits);
     return 0;
 }
