@@ -21,11 +21,12 @@ inline int trace(const unsigned int &alpha, const unsigned int &beta) {
 }
 
 // Equivalent to generate_xi_buffer, but for a xi_buffer allocated on the stack
-void generate_xi_buffer(std::complex<double>* xi_buffer, const unsigned int &n_qubits, const std::complex<double> &xi) {
-    std::complex<double> coeff(1.0,0.0);
-    for (unsigned int n = 0; n <= n_qubits; n++) {
+void generate_xi_buffer(double* xi_buffer, const unsigned int &max_weight, const std::complex<double> &xi) {
+    double coeff = 1.0 / (1 + std::norm(xi));
+    double ratio = (1 - std::norm(xi)) / (1 + std::norm(xi));
+    for (unsigned int n = 0; n <= max_weight; n++) {
         xi_buffer[n] = coeff;
-        coeff *= xi;
+        coeff *= ratio;
     }
 }
 
@@ -39,77 +40,53 @@ unsigned int get_max_degree(const unsigned int* Adj, const unsigned int &n_qubit
     return max;
 }
 
-void generate_sum_buffers(std::vector<std::complex<double>> &sum, std::vector<unsigned int> &sign, std::vector<unsigned int> &adj_sums, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const std::complex<double> &xi, const unsigned int* Adj) {
-    std::complex<double>* xi_buffer = static_cast<std::complex<double>*>(alloca((n_qubits+1) * sizeof(std::complex<double>)));
-    generate_xi_buffer(xi_buffer,n_qubits,xi);
-    #pragma omp parallel for
-    {
-        unsigned int adj_sum = 0;
-        std::complex<double> coeff = 0;
-        unsigned int sign_sum = 0;
-        for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
-            adj_sum = 0;
-            sign_sum = 0;
-            adj_sum = adj_sum ^ ( (eta & 1) * Adj[0]);
-            for (unsigned int n = 1; n < n_qubits; n++) {
-                adj_sum = adj_sum ^ ( ((eta >> n) & 1) * Adj[n]);
-                sign_sum += (eta & (1 << n)) * trace(Adj[n],eta & ((1 << (n-1)) - 1)); // Needs checking
-            }
-            adj_sums[eta] = adj_sum;
-            coeff = 0;
-            for (unsigned int k = 0; k < qubitstate_size; k++) {
-                coeff += std::conj(xi_buffer[std::popcount(k^eta)]) * xi_buffer[std::popcount(k)] * (1.0 - 2.0 * trace(adj_sum,k));
-            }
-            sum[eta] = coeff;
-        }
-    }
-}
-
 void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* Adj) {
     const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
-    double denom = 1.0 / (qubitstate_size * std::pow(1 + std::norm(xi),n_qubits));
-    std::vector<std::complex<double>> sum(qubitstate_size); // Can be optimized to only store real value, as the imaginary part after summation should be zero
-    std::vector<unsigned int> sign(qubitstate_size);
-    std::vector<unsigned int> adj_sums(qubitstate_size);
-    generate_sum_buffers(sum,sign,adj_sums,n_qubits,qubitstate_size,xi,Adj);
+    const double xi_sum = 2 * xi.real();
+    const unsigned int max_weight = get_max_degree(Adj,n_qubits);
+    double* xi_buffer = static_cast<double*>(alloca((max_weight+1) * sizeof(double)));
+    generate_xi_buffer(xi_buffer,max_weight,xi);
+
     #pragma omp parallel
     {
-        std::complex<double> coeff = 0;
+        double coeff = 0;
         #pragma omp for
         for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
             for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
-                coeff = 0;
-                for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
-                    coeff += (1.0 - 2.0 * (trace(alpha,eta) ^ trace(adj_sums[eta],beta) ^ sign[eta])) * sum[eta];
+                coeff = 1;
+                for (unsigned int j = 0; j < n_qubits; j++) {
+                    coeff *= 1 + int(1 - 2 * ((alpha>>j) & 1)) * (1 - 2 * trace(Adj[j],beta)) * xi_buffer[std::popcount(Adj[j])] * xi_sum;
                 }
-                Qfunc(alpha,beta) = coeff.real() * denom;
+                Qfunc(alpha,beta) = coeff / qubitstate_size;
                 sym_Qfunc(std::popcount(alpha),std::popcount(beta),std::popcount(alpha^beta)) += Qfunc(alpha,beta);
             }
         }
     }
+    
 }
 
 void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* Adj) {
     const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
-    double denom = 1.0 / (qubitstate_size * std::pow(1 + std::norm(xi),n_qubits));
-    std::vector<std::complex<double>> sum(qubitstate_size); // Can be optimized to only store real value, as the imaginary part after summation should be zero
-    std::vector<unsigned int> sign(qubitstate_size);
-    std::vector<unsigned int> adj_sums(qubitstate_size);
-    generate_sum_buffers(sum,sign,adj_sums,n_qubits,qubitstate_size,xi,Adj);
+    const double xi_sum = 2 * xi.real();
+    const unsigned int max_weight = get_max_degree(Adj,n_qubits);
+    double* xi_buffer = static_cast<double*>(alloca((max_weight+1) * sizeof(double)));
+    generate_xi_buffer(xi_buffer,max_weight,xi);
+
     #pragma omp parallel
     {
-        std::complex<double> coeff = 0;
+        double coeff = 0;
         #pragma omp for
         for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
             for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
-                coeff = 0;
-                for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
-                    coeff += (1.0 - 2.0 * (trace(alpha,eta) ^ trace(adj_sums[eta],beta) ^ sign[eta])) * sum[eta];
+                coeff = 1;
+                for (unsigned int j = 0; j < n_qubits; j++) {
+                    coeff *= 1 + int(1 - 2 * ((alpha>>j) & 1)) * (1 - 2 * trace(Adj[j],beta)) * xi_buffer[std::popcount(Adj[j])] * xi_sum;
                 }
-                sym_Qfunc(std::popcount(alpha),std::popcount(beta),std::popcount(alpha^beta)) += coeff.real() * denom;
+                sym_Qfunc(std::popcount(alpha),std::popcount(beta),std::popcount(alpha^beta)) += coeff / qubitstate_size;
             }
         }
     }
+    
 }
 
 // Initializes adjacency matrix, def controls whether all edges are connected or disconnected, with disconnected as default
