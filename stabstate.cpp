@@ -20,12 +20,23 @@ inline int trace(const unsigned int &alpha, const unsigned int &beta) {
     return std::popcount(alpha & beta) & 1;
 }
 
+// Returns (-1)^(a+b)
+inline double sign(const unsigned int &a, const unsigned int &b) {
+    return 1.0 - 2.0 * ( (a + b) & 1);
+}
+
 // Equivalent to generate_xi_buffer, but for a xi_buffer allocated on the stack
-void generate_xi_buffer(std::complex<double>* xi_buffer, const unsigned int &n_qubits, const std::complex<double> &xi) {
-    std::complex<double> coeff(1.0,0.0);
-    for (unsigned int n = 0; n <= n_qubits; n++) {
-        xi_buffer[n] = coeff;
-        coeff *= xi;
+void generate_xi_buffers(double* norm_buffer, double* sum_buffer, std::complex<double>* subs_buffer, const unsigned int &n_qubits, const std::complex<double> &xi) {
+    double norm_coeff = (1- std::norm(xi))/(1+std::norm(xi));
+    double sum_coeff = (sqrt(3)-1)/(1+std::norm(xi));
+    std::complex<double> subs_coeff = (std::conj(xi) - xi)/(1+std::norm(xi));
+    norm_buffer[0] = 1;
+    sum_buffer[0] = 1;
+    subs_buffer[0] = 1;
+    for (unsigned int n = 1; n <= n_qubits; n++) {
+        norm_buffer[n] = norm_buffer[n-1] * norm_coeff;
+        sum_buffer[n] = sum_buffer[n-1] * sum_coeff;
+        subs_buffer[n] = subs_buffer[n-1] * subs_coeff;
     }
 }
 
@@ -39,39 +50,42 @@ unsigned int get_max_degree(const unsigned int* Adj, const unsigned int &n_qubit
     return max;
 }
 
-void generate_sum_buffers(std::vector<std::complex<double>> &sum, std::vector<unsigned int> &sign, std::vector<unsigned int> &adj_sums, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const std::complex<double> &xi, const unsigned int* Adj) {
-    std::complex<double>* xi_buffer = static_cast<std::complex<double>*>(alloca((n_qubits+1) * sizeof(std::complex<double>)));
-    generate_xi_buffer(xi_buffer,n_qubits,xi);
-    #pragma omp parallel for
+void generate_sum_buffers(std::vector<std::complex<double>> &xi_product, std::vector<unsigned int> &adj_sums, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const std::complex<double> &xi, const unsigned int* Adj) {
+    double* norm_buffer = static_cast<double*>(alloca((n_qubits+1) * sizeof(double)));
+    double* sum_buffer = static_cast<double*>(alloca((n_qubits+1) * sizeof(double)));
+    std::complex<double>* subs_buffer = static_cast<std::complex<double>*>(alloca((n_qubits+1) * sizeof(std::complex<double>)));
+    generate_xi_buffers(norm_buffer,sum_buffer,subs_buffer,n_qubits,xi);
+    #pragma omp parallel
     {
         unsigned int adj_sum = 0;
-        std::complex<double> coeff = 0;
         unsigned int sign_sum = 0;
+        unsigned int hB = 0;
+        unsigned int hC = 0;
+        unsigned int hBpC = 0;
+        #pragma omp for
         for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
-            adj_sum = 0;
             sign_sum = 0;
-            adj_sum = adj_sum ^ ( (eta & 1) * Adj[0]);
+            adj_sum = ( (eta & 1) * Adj[0]);
             for (unsigned int n = 1; n < n_qubits; n++) {
                 adj_sum = adj_sum ^ ( ((eta >> n) & 1) * Adj[n]);
-                sign_sum += (eta & (1 << n)) * trace(Adj[n],eta & ((1 << (n-1)) - 1)); // Needs checking
+                sign_sum += ((eta >> n) & 1) * trace(Adj[n],eta & ((1 << n) - 1)); // Needs checking
             }
             adj_sums[eta] = adj_sum;
-            coeff = 0;
-            for (unsigned int k = 0; k < qubitstate_size; k++) {
-                coeff += std::conj(xi_buffer[std::popcount(k^eta)]) * xi_buffer[std::popcount(k)] * (1.0 - 2.0 * trace(adj_sum,k));
-            }
-            sum[eta] = coeff;
+            hB = std::popcount(adj_sum);
+            hC = std::popcount(eta);
+            hBpC = std::popcount(adj_sum ^ eta);
+            xi_product[eta] = (1.0 - 2.0 * (sign_sum & 1)) * norm_buffer[(hB - hC + hBpC)/2] * sum_buffer[(hC - hB + hBpC)/2] * subs_buffer[(hB + hC - hBpC)/2];
+            // std::cout << "h(eta) = " << std::to_string(std::popcount(eta)) << " xi_prod(eta) = " << xi_product[eta] << std::endl;
         }
     }
 }
 
 void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* Adj) {
     const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
-    double denom = 1.0 / (qubitstate_size * std::pow(1 + std::norm(xi),n_qubits));
-    std::vector<std::complex<double>> sum(qubitstate_size); // Can be optimized to only store real value, as the imaginary part after summation should be zero
-    std::vector<unsigned int> sign(qubitstate_size);
+    double denom = 1.0 / qubitstate_size;
+    std::vector<std::complex<double>> xi_product(qubitstate_size); // Can be optimized to only store real value, as the imaginary part after summation should be zero
     std::vector<unsigned int> adj_sums(qubitstate_size);
-    generate_sum_buffers(sum,sign,adj_sums,n_qubits,qubitstate_size,xi,Adj);
+    generate_sum_buffers(xi_product,adj_sums,n_qubits,qubitstate_size,xi,Adj);
     #pragma omp parallel
     {
         std::complex<double> coeff = 0;
@@ -80,7 +94,7 @@ void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const un
             for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
                 coeff = 0;
                 for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
-                    coeff += (1.0 - 2.0 * (trace(alpha,eta) ^ trace(adj_sums[eta],beta) ^ sign[eta])) * sum[eta];
+                    coeff += sign(trace(alpha,eta),trace(adj_sums[eta],beta^eta)) * xi_product[eta];
                 }
                 Qfunc(alpha,beta) = coeff.real() * denom;
                 sym_Qfunc(std::popcount(alpha),std::popcount(beta),std::popcount(alpha^beta)) += Qfunc(alpha,beta);
@@ -91,11 +105,10 @@ void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const un
 
 void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* Adj) {
     const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
-    double denom = 1.0 / (qubitstate_size * std::pow(1 + std::norm(xi),n_qubits));
-    std::vector<std::complex<double>> sum(qubitstate_size); // Can be optimized to only store real value, as the imaginary part after summation should be zero
-    std::vector<unsigned int> sign(qubitstate_size);
+    double denom = 1.0 / qubitstate_size;
+    std::vector<std::complex<double>> xi_product(qubitstate_size); // Can be optimized to only store real value, as the imaginary part after summation should be zero
     std::vector<unsigned int> adj_sums(qubitstate_size);
-    generate_sum_buffers(sum,sign,adj_sums,n_qubits,qubitstate_size,xi,Adj);
+    generate_sum_buffers(xi_product,adj_sums,n_qubits,qubitstate_size,xi,Adj);
     #pragma omp parallel
     {
         std::complex<double> coeff = 0;
@@ -104,7 +117,7 @@ void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qu
             for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
                 coeff = 0;
                 for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
-                    coeff += (1.0 - 2.0 * (trace(alpha,eta) ^ trace(adj_sums[eta],beta) ^ sign[eta])) * sum[eta];
+                    coeff += sign(trace(alpha,beta),trace(adj_sums[eta],beta^eta)) * xi_product[eta];
                 }
                 sym_Qfunc(std::popcount(alpha),std::popcount(beta),std::popcount(alpha^beta)) += coeff.real() * denom;
             }
@@ -182,12 +195,14 @@ void save_symQfunc(const Eigen::Tensor<double,3> &Qfunc, const std::string &file
 void calc_save_symQ(const unsigned int &n_qubits, unsigned int* Adj, const std::string &filename) {
     const unsigned int qubitstate_size = 1 << n_qubits;
     Eigen::Tensor<double,3> sym_Qfunc(n_qubits,n_qubits,n_qubits);
+    Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
     auto start = std::chrono::high_resolution_clock::now();
-    symonly_graphQ(sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
     std::cout << "Calculating took " << duration.count() << "s" << std::endl;
     save_symQfunc(sym_Qfunc,filename);
+    save_Qfunc(Qfunc,filename);
 }
 
 // Calculates the symmetric Q function of a maximally connected graph state with removed cyclic edges
@@ -216,6 +231,12 @@ void generate_maxcon_symQ(const unsigned int &n_qubits) {
     calc_save_symQ(n_qubits,Adj,filename);
 }
 
+void generate_discon_symQ(const unsigned int &n_qubits) {
+    const std::string filename = "dc_q" + std::to_string(n_qubits)+".txt";
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    init_Adj(Adj,n_qubits,0);
+    calc_save_symQ(n_qubits,Adj,filename);
+}
 unsigned int parse_unsignedint(const std::string &input) {
     try {
         unsigned long u = std::stoul(input);
@@ -234,7 +255,7 @@ unsigned int parse_unsignedint(const std::string &input) {
 void sel_calc_state(const unsigned int &n_qubits) {
     bool selected = false;
     while (!selected) {
-        std::cout << "Select the graph type [m(aximmally connected),c(yclically connected),a(cyclically connected)]" << std::endl;
+        std::cout << "Select the graph type [m(aximmally connected),c(yclically connected),a(cyclically connected),d(isconnected)]" << std::endl;
         std::string input;
         std::cin >> input;
         if (input == "mc" || input == "m") {
@@ -245,6 +266,9 @@ void sel_calc_state(const unsigned int &n_qubits) {
             selected = true;
         } else if (input == "ac" || input == "a") {
             generate_acyclic_symQ(n_qubits);
+            selected = true;
+        } else if (input == "dc" || input == "d") {
+            generate_discon_symQ(n_qubits);
             selected = true;
         }
     }
