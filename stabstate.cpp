@@ -68,9 +68,12 @@ void generate_sum_buffers(std::vector<std::complex<double>> &xi_product, std::ve
             adj_sum = ( (eta & 1) * Adj[0]);
             for (unsigned int n = 1; n < n_qubits; n++) {
                 adj_sum = adj_sum ^ ( ((eta >> n) & 1) * Adj[n]);
-                sign_sum += ((eta >> n) & 1) * trace(Adj[n],eta & ((1 << n) - 1)); // Needs checking
+                sign_sum += ((eta >> n) & 1) * std::popcount( Adj[n] & (eta & ((1 << n) - 1)) ); // Needs checking. Seems to output correctly
             }
             adj_sums[eta] = adj_sum;
+            // std::cout << std::bitset<8>(eta) << std::endl;
+            // std::cout << "adj_sums(" << std::bitset<8>(eta) << ") = " << std::bitset<8>(adj_sum) << std::endl;
+            // std::cout << "sign_sum(" << std::bitset<8>(eta) << ") = " << sign_sum << std::endl;
             hB = std::popcount(adj_sum);
             hC = std::popcount(eta);
             hBpC = std::popcount(adj_sum ^ eta);
@@ -97,6 +100,9 @@ void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const un
                     coeff += sign(trace(alpha,eta),trace(adj_sums[eta],beta^eta)) * xi_product[eta];
                 }
                 Qfunc(alpha,beta) = coeff.real() * denom;
+                // if (coeff.imag() > 0.1) {
+                //     std::cout << coeff.imag() << std::endl;
+                // }
                 sym_Qfunc(std::popcount(alpha),std::popcount(beta),std::popcount(alpha^beta)) += Qfunc(alpha,beta);
             }
         }
@@ -125,14 +131,14 @@ void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qu
     }
 }
 
-// Initializes adjacency matrix, def controls whether all edges are connected or disconnected, with disconnected as default
+// Initializes adjacency matrix, def controls whether all edges are connected or disconnected, with disconnected as default. def should only be 0 or 1, undefined behavior otherwise
 void init_Adj(unsigned int* Adj, const unsigned int &size, const unsigned int def=0) {
     if (size > 8*sizeof(unsigned int)) {
         std::cout << "Too many qubits, change unsigned int in adjacency matrices to use more" << std::endl;
     } else {
-        unsigned int connection = (1 << (def * size)) - 1;
+        unsigned int connection = def * ((1 << size) - 1);
         for (unsigned int i = 0; i < size; i++) {
-            Adj[i] = connection;
+            Adj[i] = connection ^ (1 << i);
         }
     }
 }
@@ -162,6 +168,17 @@ void add_cyclic_edges(const unsigned int &n_qubits, unsigned int* Adj) {
         add_edge(Adj,n_qubits,n,n+1);
     }
     add_edge(Adj,n_qubits,n_qubits-1,0);
+}
+
+// Prints the Qfunc to console for debugging purposes
+void print_Qfunc(const Eigen::MatrixXd &Qfunc) {
+    const unsigned int n_qubits = 4;
+    const unsigned int qubitstate_size = 1<<n_qubits;
+    for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
+            for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
+                std::cout << "Q(" << alpha << "," << beta << ") = " <<Qfunc(alpha,beta) << std::endl;
+            }
+        }
 }
 
 void save_Qfunc(const Eigen::MatrixXd &Qfunc, const std::string &filename) {
@@ -194,15 +211,16 @@ void save_symQfunc(const Eigen::Tensor<double,3> &Qfunc, const std::string &file
 // Calculates the symmetric Q function of a given adjacency matrix and saves it to filename. Prints time taken to perform the calculations
 void calc_save_symQ(const unsigned int &n_qubits, unsigned int* Adj, const std::string &filename) {
     const unsigned int qubitstate_size = 1 << n_qubits;
-    Eigen::Tensor<double,3> sym_Qfunc(n_qubits,n_qubits,n_qubits);
-    Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
+    Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
+    // Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
     auto start = std::chrono::high_resolution_clock::now();
-    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    // graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    symonly_graphQ(sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
     std::cout << "Calculating took " << duration.count() << "s" << std::endl;
     save_symQfunc(sym_Qfunc,filename);
-    save_Qfunc(Qfunc,filename);
+    // save_Qfunc(Qfunc,filename);
 }
 
 // Calculates the symmetric Q function of a maximally connected graph state with removed cyclic edges
@@ -280,6 +298,7 @@ int main() {
     std::cin >> input;
     unsigned int n_qubits = parse_unsignedint(input);
     sel_calc_state(n_qubits);
+
     // std::string filename = "testing.txt";
     // unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
     // init_Adj(Adj,n_qubits,0);
