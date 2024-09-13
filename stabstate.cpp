@@ -25,6 +25,10 @@ inline double sign(const unsigned int &a, const unsigned int &b) {
     return 1.0 - 2.0 * ( (a + b) & 1);
 }
 
+inline double sign(const unsigned int &a) {
+    return 1.0 - 2.0 * (a & 1);
+}
+
 // Equivalent to generate_xi_buffer, but for a xi_buffer allocated on the stack
 void generate_xi_buffers(double* norm_buffer, double* sum_buffer, std::complex<double>* subs_buffer, const unsigned int &n_qubits, const std::complex<double> &xi) {
     double norm_coeff = (1- std::norm(xi))/(1+std::norm(xi));
@@ -40,55 +44,52 @@ void generate_xi_buffers(double* norm_buffer, double* sum_buffer, std::complex<d
     }
 }
 
-unsigned int get_max_degree(const unsigned int* Adj, const unsigned int &n_qubits) {
-    unsigned int max = 0;
-    for (unsigned int n = 0; n < n_qubits; n++) {
-        if (max < std::popcount(Adj[n])) {
-            max = std::popcount(Adj[n]);
-        }
-    }
-    return max;
-}
-
-void generate_sum_buffers(std::vector<std::complex<double>> &xi_product, std::vector<unsigned int> &adj_sums, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const std::complex<double> &xi, const unsigned int* Adj) {
+void generate_sum_buffers(std::vector<std::complex<double>> &xi_product, std::vector<unsigned int> &mu_sums, std::vector<unsigned int> &nu_sums, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const std::complex<double> &xi, const unsigned int* mu, const unsigned int* nu) {
     double* norm_buffer = static_cast<double*>(alloca((n_qubits+1) * sizeof(double)));
     double* sum_buffer = static_cast<double*>(alloca((n_qubits+1) * sizeof(double)));
     std::complex<double>* subs_buffer = static_cast<std::complex<double>*>(alloca((n_qubits+1) * sizeof(std::complex<double>)));
     generate_xi_buffers(norm_buffer,sum_buffer,subs_buffer,n_qubits,xi);
     #pragma omp parallel
     {
-        unsigned int adj_sum = 0;
+        unsigned int mu_sum = 0;
+        unsigned int nu_sum = 0;
         unsigned int sign_sum = 0;
+        unsigned int eta_n = 0;
         unsigned int hB = 0;
         unsigned int hC = 0;
         unsigned int hBpC = 0;
         #pragma omp for
         for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
             sign_sum = 0;
-            adj_sum = ( (eta & 1) * Adj[0]);
+            mu_sum = ( (eta & 1) * mu[0]);
+            nu_sum = ( (eta & 1) * nu[0]);
             for (unsigned int n = 1; n < n_qubits; n++) {
-                adj_sum = adj_sum ^ ( ((eta >> n) & 1) * Adj[n]);
-                sign_sum += ((eta >> n) & 1) * std::popcount( Adj[n] & (eta & ((1 << n) - 1)) ); // Needs checking. Seems to output correctly
+                eta_n = (eta >> n) & 1;
+                sign_sum += eta_n * std::popcount( mu[n] & nu_sum ); // Needs checking. Seems to output correctly
+                mu_sum = mu_sum ^ ( eta_n * mu[n]);
+                nu_sum = nu_sum ^ ( eta_n * nu[n]);
             }
-            adj_sums[eta] = adj_sum;
+            mu_sums[eta] = mu_sum;
+            nu_sums[eta] = nu_sum;
             // std::cout << std::bitset<8>(eta) << std::endl;
             // std::cout << "adj_sums(" << std::bitset<8>(eta) << ") = " << std::bitset<8>(adj_sum) << std::endl;
             // std::cout << "sign_sum(" << std::bitset<8>(eta) << ") = " << sign_sum << std::endl;
-            hB = std::popcount(adj_sum);
-            hC = std::popcount(eta);
-            hBpC = std::popcount(adj_sum ^ eta);
-            xi_product[eta] = (1.0 - 2.0 * (sign_sum & 1)) * norm_buffer[(hB - hC + hBpC)/2] * sum_buffer[(hC - hB + hBpC)/2] * subs_buffer[(hB + hC - hBpC)/2];
+            hB = std::popcount(mu_sum);
+            hC = std::popcount(nu_sum);
+            hBpC = std::popcount(mu_sum ^ nu_sum);
+            xi_product[eta] = sign(trace(mu_sum,nu_sum) + sign_sum) * norm_buffer[(hB - hC + hBpC)/2] * sum_buffer[(hC - hB + hBpC)/2] * subs_buffer[(hB + hC - hBpC)/2];
             // std::cout << "h(eta) = " << std::to_string(std::popcount(eta)) << " xi_prod(eta) = " << xi_product[eta] << std::endl;
         }
     }
 }
 
-void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* Adj) {
+void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* mu, const unsigned int* nu) {
     const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
     double denom = 1.0 / qubitstate_size;
     std::vector<std::complex<double>> xi_product(qubitstate_size); // Can be optimized to only store real value, as the imaginary part after summation should be zero
-    std::vector<unsigned int> adj_sums(qubitstate_size);
-    generate_sum_buffers(xi_product,adj_sums,n_qubits,qubitstate_size,xi,Adj);
+    std::vector<unsigned int> mu_sums(qubitstate_size);
+    std::vector<unsigned int> nu_sums(qubitstate_size);
+    generate_sum_buffers(xi_product,mu_sums,nu_sums,n_qubits,qubitstate_size,xi,mu,nu);
     #pragma omp parallel
     {
         std::complex<double> coeff = 0;
@@ -97,7 +98,7 @@ void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const un
             for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
                 coeff = 0;
                 for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
-                    coeff += sign(trace(alpha,eta),trace(adj_sums[eta],beta^eta)) * xi_product[eta];
+                    coeff += sign(trace(alpha,nu_sums[eta]),trace(beta,mu_sums[eta])) * xi_product[eta];
                 }
                 Qfunc(alpha,beta) = coeff.real() * denom;
                 // if (coeff.imag() > 0.1) {
@@ -109,12 +110,13 @@ void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const un
     }
 }
 
-void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* Adj) {
+void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* mu, const unsigned int* nu) {
     const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
     double denom = 1.0 / qubitstate_size;
     std::vector<std::complex<double>> xi_product(qubitstate_size); // Can be optimized to only store real value, as the imaginary part after summation should be zero
-    std::vector<unsigned int> adj_sums(qubitstate_size);
-    generate_sum_buffers(xi_product,adj_sums,n_qubits,qubitstate_size,xi,Adj);
+    std::vector<unsigned int> mu_sums(qubitstate_size);
+    std::vector<unsigned int> nu_sums(qubitstate_size);
+    generate_sum_buffers(xi_product,mu_sums,nu_sums,n_qubits,qubitstate_size,xi,mu,nu);
     #pragma omp parallel
     {
         std::complex<double> coeff = 0;
@@ -123,7 +125,7 @@ void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qu
             for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
                 coeff = 0;
                 for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
-                    coeff += sign(trace(alpha,beta),trace(adj_sums[eta],beta^eta)) * xi_product[eta];
+                    coeff += sign(trace(alpha,nu_sums[eta]),trace(beta,mu_sums[eta])) * xi_product[eta];
                 }
                 sym_Qfunc(std::popcount(alpha),std::popcount(beta),std::popcount(alpha^beta)) += coeff.real() * denom;
             }
@@ -131,54 +133,12 @@ void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qu
     }
 }
 
-// Initializes adjacency matrix, def controls whether all edges are connected or disconnected, with disconnected as default. def should only be 0 or 1, undefined behavior otherwise
-void init_Adj(unsigned int* Adj, const unsigned int &size, const unsigned int def=0) {
-    if (size > 8*sizeof(unsigned int)) {
-        std::cout << "Too many qubits, change unsigned int in adjacency matrices to use more" << std::endl;
-    } else {
-        unsigned int connection = def * ((1 << size) - 1);
-        for (unsigned int i = 0; i < size; i++) {
-            Adj[i] = connection ^ (1 << i);
-        }
+// Calculates the expansion in the normal self-dual basis of the generators of a line with slope m. Warning: A normal self-dual basis doesn't exist if the number of qubits is a multiple of 4.
+void calc_line_gens(unsigned int* mu, unsigned int* nu, const unsigned int &m, const unsigned int &n_qubits) {
+    for (unsigned int i = 0; i < n_qubits; i++) {
+        mu[i] = 1 << i;
+        nu[i] = (m << i + (m >> (n_qubits - i))) & ((1 << n_qubits) - 1);
     }
-}
-
-// Adds (or removes if already present) edge (a,b) from the adjacency matrix. Edges (a,a) can't be added by this function, which is wanted behavior as we only allow simple graphs
-void add_edge(unsigned int* Adj, const unsigned int &size, const unsigned int &a, const unsigned int &b) {
-    if (size < a+1 || size < b+1) {
-        std::cout << "Edges outside bounds" << std::endl;
-    } else {
-        Adj[a] = Adj[a] ^ (1 << b);
-        Adj[b] = Adj[b] ^ (1 << a);
-    }
-}
-
-// Adds (or removes if already present) edge (a,b) from the adjacency matrix. Edges (a,a) can't be added by this function, which is wanted behavior as we only allow simple graphs
-void add_edge(unsigned int* Adj, const unsigned int &size, const std::pair<unsigned int, unsigned int> &edge) {
-    if (size < edge.first+1 || size < edge.second+1) {
-        std::cout << "Edges outside bounds" << std::endl;
-    } else {
-        Adj[edge.first] = Adj[edge.first] ^ (1 << edge.second);
-        Adj[edge.second] = Adj[edge.second] ^ (1 << edge.first);
-    }
-}
-
-void add_cyclic_edges(const unsigned int &n_qubits, unsigned int* Adj) {
-    for (unsigned int n = 0; n < n_qubits-1; n++) {
-        add_edge(Adj,n_qubits,n,n+1);
-    }
-    add_edge(Adj,n_qubits,n_qubits-1,0);
-}
-
-// Prints the Qfunc to console for debugging purposes
-void print_Qfunc(const Eigen::MatrixXd &Qfunc) {
-    const unsigned int n_qubits = 4;
-    const unsigned int qubitstate_size = 1<<n_qubits;
-    for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
-            for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
-                std::cout << "Q(" << alpha << "," << beta << ") = " <<Qfunc(alpha,beta) << std::endl;
-            }
-        }
 }
 
 void save_Qfunc(const Eigen::MatrixXd &Qfunc, const std::string &filename) {
@@ -208,101 +168,28 @@ void save_symQfunc(const Eigen::Tensor<double,3> &Qfunc, const std::string &file
     }
 }
 
-// Calculates the symmetric Q function of a given adjacency matrix and saves it to filename. Prints time taken to perform the calculations
-void calc_save_symQ(const unsigned int &n_qubits, unsigned int* Adj, const std::string &filename) {
+// Calculates the symmetric Q function of a stabilizer state with a given set of generators and saves it to filename. Prints time taken to perform the calculations
+void calc_save_symQ(const unsigned int &n_qubits, unsigned int* mu, unsigned int* nu, const std::string &filename) {
     const unsigned int qubitstate_size = 1 << n_qubits;
     Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
-    // Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
+    Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
     auto start = std::chrono::high_resolution_clock::now();
-    // graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
-    symonly_graphQ(sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, mu, nu);
+    // symonly_graphQ(sym_Qfunc.setZero(), n_qubits, qubitstate_size, mu, nu);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
     std::cout << "Calculating took " << duration.count() << "s" << std::endl;
     save_symQfunc(sym_Qfunc,filename);
-    // save_Qfunc(Qfunc,filename);
-}
-
-// Calculates the symmetric Q function of a maximally connected graph state with removed cyclic edges
-void generate_acyclic_symQ(const unsigned int &n_qubits) {
-    const std::string filename = "ac_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
-    init_Adj(Adj,n_qubits,1);
-    add_cyclic_edges(n_qubits,Adj);
-    calc_save_symQ(n_qubits,Adj,filename);
-}
-
-// Calculates the symmetric Q function of a cyclically connected graph state
-void generate_cyclic_symQ(const unsigned int &n_qubits) {
-    const std::string filename = "cc_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
-    init_Adj(Adj,n_qubits,0);
-    add_cyclic_edges(n_qubits,Adj);
-    calc_save_symQ(n_qubits,Adj,filename);
-}
-
-// Calculates the symmetric Q function of a maximally connected graph state
-void generate_maxcon_symQ(const unsigned int &n_qubits) {
-    const std::string filename = "mc_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
-    init_Adj(Adj,n_qubits,1);
-    calc_save_symQ(n_qubits,Adj,filename);
-}
-
-void generate_discon_symQ(const unsigned int &n_qubits) {
-    const std::string filename = "dc_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
-    init_Adj(Adj,n_qubits,0);
-    calc_save_symQ(n_qubits,Adj,filename);
-}
-unsigned int parse_unsignedint(const std::string &input) {
-    try {
-        unsigned long u = std::stoul(input);
-        if (u > std::numeric_limits<unsigned int>::max())
-            throw std::out_of_range(input);
-
-        return u;
-    } catch (const std::invalid_argument& e) {
-        std::cout << "Input could not be parsed: " << e.what() << std::endl;
-    } catch (const std::out_of_range& e) {
-        std::cout << "Input out of range: " << e.what() << std::endl;
-    }
-    return 0;
-}
-
-void sel_calc_state(const unsigned int &n_qubits) {
-    bool selected = false;
-    while (!selected) {
-        std::cout << "Select the graph type [m(aximmally connected),c(yclically connected),a(cyclically connected),d(isconnected)]" << std::endl;
-        std::string input;
-        std::cin >> input;
-        if (input == "mc" || input == "m") {
-            generate_maxcon_symQ(n_qubits);
-            selected = true;
-        } else if (input == "cc" || input == "c") {
-            generate_cyclic_symQ(n_qubits);
-            selected = true;
-        } else if (input == "ac" || input == "a") {
-            generate_acyclic_symQ(n_qubits);
-            selected = true;
-        } else if (input == "dc" || input == "d") {
-            generate_discon_symQ(n_qubits);
-            selected = true;
-        }
-    }
+    save_Qfunc(Qfunc,filename);
 }
 
 int main() {
-    std::string input;
-    std::cout << "Enter the number of qubits" << std::endl;
-    std::cin >> input;
-    unsigned int n_qubits = parse_unsignedint(input);
-    sel_calc_state(n_qubits);
+    const unsigned int m = 0;
+    const unsigned int n_qubits = 10;
+    unsigned int* mu = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
+    unsigned int* nu = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
+    calc_line_gens(mu,nu,m,n_qubits);
+    calc_save_symQ(n_qubits,mu,nu,"test.txt");
 
-    // std::string filename = "testing.txt";
-    // unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
-    // init_Adj(Adj,n_qubits,0);
-    // add_edge(Adj,n_qubits,0,1);
-    // calc_save_symQ(n_qubits,Adj,filename);
     return 0;
 }
