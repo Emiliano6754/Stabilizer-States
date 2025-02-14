@@ -9,6 +9,7 @@
 #include<chrono> // Timing
 #include<Eigen/Dense>
 #include<unsupported/Eigen/CXX11/Tensor>
+#include "GF2N.h"
 
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
@@ -293,11 +294,21 @@ void sel_calc_state(const unsigned int &n_qubits) {
 }
 
 int main() {
-    std::string input;
-    std::cout << "Enter the number of qubits" << std::endl;
-    std::cin >> input;
-    unsigned int n_qubits = parse_unsignedint(input);
-    sel_calc_state(n_qubits);
+    // std::string input;
+    // std::cout << "Enter the number of qubits" << std::endl;
+    // std::cin >> input;
+    // unsigned int n_qubits = parse_unsignedint(input);
+    // sel_calc_state(n_qubits);
+    unsigned int cum = 0b10;
+    for (int i = 0; i < 255; i++) {
+        std::cout << "x^" << i+2 << " = " << std::bitset<8>(GF2Nmult(cum, 0b10)) << std::endl;
+        cum = cum << 1;
+    }
+    int hola = GF2Nmult(0b10,0b10);
+    std::cout << std::to_string(hola) << std::endl;
+    std::cout << "hola" << std::endl;
+
+    
 
     // std::string filename = "testing.txt";
     // unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));

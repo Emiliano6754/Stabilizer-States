@@ -11,6 +11,8 @@
                 "C:\\dev\\lib\\eigen",
                 "-g",
                 "-std=c++20",
+                "-mpclmul",
+                "-msse2",
                 "*.cpp",
                 "-o",
                 "${workspaceFolder}\\main.exe"
