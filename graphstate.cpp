@@ -301,10 +301,10 @@ int main() {
     // sel_calc_state(n_qubits);
     unsigned int cum = 0b10;
     for (int i = 0; i < 255; i++) {
-        cum = GF2Nmult(cum, 0b10);
+        cum = GF2N_pol_mult(cum, 0b10);
         std::cout << "x^" << i+2 << " = " << std::bitset<8>(cum) << std::endl;
     }
-    int hola = GF2Nmult(0b10,0b10);
+    int hola = GF2N_pol_mult(0b10,0b10);
     std::cout << std::to_string(hola) << std::endl;
     std::cout << "hola" << std::endl;
 
