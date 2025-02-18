@@ -30,7 +30,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "C/C++: g++.exe build all files"
+            "preLaunchTask": "C/C++: g++.exe build current file and dependencies"
         }
     ]
 }

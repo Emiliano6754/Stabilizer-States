@@ -301,8 +301,8 @@ int main() {
     // sel_calc_state(n_qubits);
     unsigned int cum = 0b10;
     for (int i = 0; i < 255; i++) {
-        std::cout << "x^" << i+2 << " = " << std::bitset<8>(GF2Nmult(cum, 0b10)) << std::endl;
-        cum = cum << 1;
+        cum = GF2Nmult(cum, 0b10);
+        std::cout << "x^" << i+2 << " = " << std::bitset<8>(cum) << std::endl;
     }
     int hola = GF2Nmult(0b10,0b10);
     std::cout << std::to_string(hola) << std::endl;
