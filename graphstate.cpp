@@ -299,15 +299,17 @@ int main() {
     // std::cin >> input;
     // unsigned int n_qubits = parse_unsignedint(input);
     // sel_calc_state(n_qubits);
+    const unsigned int N = 8;
+    const unsigned int max_power = (1 << N) - 1;
     unsigned int cum = 0b10;
-    for (int i = 0; i < 255; i++) {
-        cum = GF2N_pol_mult(cum, 0b10);
-        std::cout << "x^" << i+2 << " = " << std::bitset<8>(cum) << std::endl;
+    for (int i = 1; i < max_power; i++) {
+        cum = GF2N_pol_mult(cum, 0b10, N);
+        std::cout << "x^" << i+1 << " = " << std::bitset<8>(cum) << std::endl;
     }
-    int hola = GF2N_pol_mult(0b10,0b10);
+    int hola = GF2N_pol_mult(0b10,0b10, N);
     std::cout << std::to_string(hola) << std::endl;
     std::cout << "hola" << std::endl;
-
+    
     
 
     // std::string filename = "testing.txt";

@@ -9,6 +9,7 @@
 #include<chrono> // Timing
 #include<Eigen/Dense>
 #include<unsupported/Eigen/CXX11/Tensor>
+#include "GF2N.h"
 
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
@@ -133,11 +134,15 @@ void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qu
     }
 }
 
-// Calculates the expansion in the normal self-dual basis of the generators of a line with slope m. Warning: A normal self-dual basis doesn't exist if the number of qubits is a multiple of 4.
-void calc_line_gens(unsigned int* mu, unsigned int* nu, const unsigned int &m, const unsigned int &n_qubits) {
+// Calculates the expansion in the normal self-dual basis of the generators of a line with slope m by passing to the generator basis
+void calc_line_gens(unsigned int* mu, unsigned int* nu, const unsigned int &m, const unsigned int* self_dual_basis, const unsigned int* generator_basis, const unsigned int &n_qubits) {
+    const unsigned int m_gen = change_basis(m, generator_basis, n_qubits);
+    unsigned int mu_gen, nu_gen;
     for (unsigned int i = 0; i < n_qubits; i++) {
         mu[i] = 1 << i;
-        nu[i] = (m << i + (m >> (n_qubits - i))) & ((1 << n_qubits) - 1);
+        mu_gen = change_basis(mu[i], generator_basis, n_qubits);
+        nu_gen = GF2N_pol_mult(m_gen, mu_gen, n_qubits);
+        nu[i] = change_basis(nu_gen, self_dual_basis, n_qubits);
     }
 }
 
@@ -184,11 +189,15 @@ void calc_save_symQ(const unsigned int &n_qubits, unsigned int* mu, unsigned int
 }
 
 int main() {
-    const unsigned int m = 0;
-    const unsigned int n_qubits = 10;
-    unsigned int* mu = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
-    unsigned int* nu = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
-    calc_line_gens(mu,nu,m,n_qubits);
+    const unsigned int m = 1;
+    const unsigned int n_qubits = 5;
+    unsigned int* const self_dual_basis = static_cast<unsigned int*>( _malloca(n_qubits * sizeof(unsigned int)) );
+    unsigned int* const generator_basis = static_cast<unsigned int*>( _malloca(n_qubits * sizeof(unsigned int)) );
+    initialize_self_dual_basis(self_dual_basis, generator_basis, n_qubits);
+
+    unsigned int* const mu = static_cast<unsigned int*>( _malloca(n_qubits * sizeof(unsigned int)) );
+    unsigned int* const nu = static_cast<unsigned int*>( _malloca(n_qubits * sizeof(unsigned int)) );
+    calc_line_gens(mu, nu, m, self_dual_basis, generator_basis, n_qubits);
     calc_save_symQ(n_qubits,mu,nu,"test.txt");
 
     return 0;
