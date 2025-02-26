@@ -4,6 +4,8 @@
 #include<string>
 #include<sstream>
 #include<iostream>
+#include<bitset> // Easy binary printing for debugging
+#include<algorithm> // Reverse raw pointer array
 
 // Returns the number on the (N-2)th row of polynomial filename. Can be used to parse the full, reduced and reducing polynomials. Can read polynomials of up to 64 qubits
 __m128i read_polynomial(const std::string &polynomial_filename, const unsigned int &N) {
@@ -108,11 +110,19 @@ unsigned int change_basis(const unsigned int &element, const unsigned int* basis
     return transformed_element;
 }
 
+// Prints the augmented matrix for debugging purposes
+void print_augmented_matrix(const unsigned long long* augmented_matrix, const unsigned int &N) {
+    for (unsigned int j = 0; j < N; j++) {
+        std::cout << std::bitset<8>(augmented_matrix[j]) << std::endl;
+    }
+    std::cout << "_____________" << std::endl;
+}
+
 // Calculates the inverse of matrix, where the binary decomposition of each element is taken as a row. Assumes both matrix and inverse_matrix hold space for N elements. Only works for up to 32 qubits. This can be seen in that it takes only unsigned ints, so that no error can happen. Augmented matrix may be changed to two separate matrices, for which more qubits can be added
 void GF2N_invert_matrix(const unsigned int* matrix, unsigned int* inverse_matrix, const unsigned int &N) {
     unsigned long long* augmented_matrix = static_cast<unsigned long long*>( _malloca(N * sizeof(unsigned long long)) );
     for (unsigned int j = 0; j < N; j++) {
-        augmented_matrix[j] = (static_cast<unsigned long long>(matrix[j]) << N) | (1 << (N - j));
+        augmented_matrix[j] = (static_cast<unsigned long long>(matrix[j]) << N) | (1 << j);
     }
     unsigned long long pivot = 1 << (2*N - 1);
     for (unsigned int j = 0; j < N; j++) {
@@ -120,6 +130,7 @@ void GF2N_invert_matrix(const unsigned int* matrix, unsigned int* inverse_matrix
         for (unsigned int k = j; k < N; k++) {
             if (augmented_matrix[k] & pivot) {
                 std::swap(augmented_matrix[j], augmented_matrix[k]);
+                // print_augmented_matrix(augmented_matrix, N);
                 break;
             }
         }
@@ -127,6 +138,7 @@ void GF2N_invert_matrix(const unsigned int* matrix, unsigned int* inverse_matrix
         for (unsigned int k = 0; k < N; k++) {
             if (augmented_matrix[k] & pivot && k != j) {
                 augmented_matrix[k] ^= augmented_matrix[j];
+                // print_augmented_matrix(augmented_matrix, N);
             }
         }
         pivot >>= 1;
@@ -138,6 +150,7 @@ void GF2N_invert_matrix(const unsigned int* matrix, unsigned int* inverse_matrix
 }
 
 void initialize_self_dual_basis(unsigned int* self_dual_basis, unsigned int* generator_basis, const unsigned int &N) {
-    read_basis_from_generator("C:\\dev\\Campos\\Data\\selfadj_bases.txt", self_dual_basis, N);
+    read_basis_from_generator("C:\\dev\\Campos\\Data\\self_adj_bases.txt", self_dual_basis, N);
     GF2N_invert_matrix(self_dual_basis, generator_basis, N);
+    std::reverse(generator_basis, generator_basis + N);
 }
