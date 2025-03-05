@@ -9,7 +9,6 @@
 #include<chrono> // Timing
 #include<Eigen/Dense>
 #include<unsupported/Eigen/CXX11/Tensor>
-#include "GF2N.h"
 
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
@@ -139,7 +138,7 @@ void init_Adj(unsigned int* Adj, const unsigned int &size, const unsigned int de
     } else {
         unsigned int connection = def * ((1 << size) - 1);
         for (unsigned int i = 0; i < size; i++) {
-            Adj[i] = connection ^ (1 << i);
+            Adj[i] = connection ^ (def << i);
         }
     }
 }
@@ -213,15 +212,26 @@ void save_symQfunc(const Eigen::Tensor<double,3> &Qfunc, const std::string &file
 void calc_save_symQ(const unsigned int &n_qubits, unsigned int* Adj, const std::string &filename) {
     const unsigned int qubitstate_size = 1 << n_qubits;
     Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
-    // Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
     auto start = std::chrono::high_resolution_clock::now();
-    // graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
     symonly_graphQ(sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
     std::cout << "Calculating took " << duration.count() << "s" << std::endl;
     save_symQfunc(sym_Qfunc,filename);
-    // save_Qfunc(Qfunc,filename);
+}
+
+// Calculates the Q function of a given adjacency matrix and saves it to filename. Prints time taken to perform the calculations
+void calc_save_graph_symQ(const unsigned int &n_qubits, unsigned int* Adj, const std::string &filename) {
+    const unsigned int qubitstate_size = 1 << n_qubits;
+    Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
+    Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
+    auto start = std::chrono::high_resolution_clock::now();
+    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> duration = end - start;
+    std::cout << "Calculating took " << duration.count() << "s" << std::endl;
+    save_symQfunc(sym_Qfunc,filename);
+    save_Qfunc(Qfunc,filename);
 }
 
 // Calculates the symmetric Q function of a maximally connected graph state with removed cyclic edges
@@ -293,29 +303,64 @@ void sel_calc_state(const unsigned int &n_qubits) {
     }
 }
 
+void get_unsignedint(unsigned int &parsed_input) {
+    std::string input = "";
+    std::cin >> input;
+    try {
+        unsigned long u = std::stoul(input);
+        if (u > std::numeric_limits<unsigned int>::max())
+            throw std::out_of_range(input);
+
+        parsed_input = u;
+    } catch (const std::invalid_argument& e) {
+        std::cout << "Input could not be parsed: " << e.what() << std::endl;
+    } catch (const std::out_of_range& e) {
+        std::cout << "Input out of range: " << e.what() << std::endl;
+    }
+}
+
+void calc_manual_graph() {
+    unsigned int N = 0;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(N);
+    bool finished = false;
+    unsigned int* Adj = static_cast<unsigned int*>(_malloca(N * N * sizeof(unsigned int)));
+    init_Adj(Adj, N, 0);
+    unsigned int q1, q2;
+    std::string input;
+    while (!finished) {
+        std::cout << "Enter a qubit connection" << std::endl;
+        get_unsignedint(q1);
+        get_unsignedint(q2);
+        if (q1 < N || q2 < N) {
+            add_edge(Adj, N, q1, q2);
+            std::cout << "Enter n to exit" << std::endl;
+            std::getline(std::cin, input);
+            if (std::cin.peek() != '\n') {
+                std::cin >> input;
+                if (input == "n") {
+                    break;
+                }
+            }
+            
+        } else {
+            std::cout << "Connection outside bounds" << std::endl;
+        }
+    }
+    std::cout << "Enter the file prefix" << std::endl;
+    input = "";
+    std::cin >> input;
+    const std::string filename = input+"_q" + std::to_string(N)+".txt";
+    calc_save_graph_symQ(N,Adj,filename);
+}
+
 int main() {
     // std::string input;
     // std::cout << "Enter the number of qubits" << std::endl;
     // std::cin >> input;
     // unsigned int n_qubits = parse_unsignedint(input);
     // sel_calc_state(n_qubits);
-    const unsigned int N = 8;
-    const unsigned int max_power = (1 << N) - 1;
-    unsigned int cum = 0b10;
-    for (int i = 1; i < max_power; i++) {
-        cum = GF2N_pol_mult(cum, 0b10, N);
-        std::cout << "x^" << i+1 << " = " << std::bitset<8>(cum) << std::endl;
-    }
-    int hola = GF2N_pol_mult(0b10,0b10, N);
-    std::cout << std::to_string(hola) << std::endl;
-    std::cout << "hola" << std::endl;
     
-    
-
-    // std::string filename = "testing.txt";
-    // unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
-    // init_Adj(Adj,n_qubits,0);
-    // add_edge(Adj,n_qubits,0,1);
-    // calc_save_symQ(n_qubits,Adj,filename);
+    calc_manual_graph();
     return 0;
 }
