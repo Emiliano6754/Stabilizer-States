@@ -266,6 +266,40 @@ void generate_discon_symQ(const unsigned int &n_qubits) {
     init_Adj(Adj,n_qubits,0);
     calc_save_symQ(n_qubits,Adj,filename);
 }
+
+// Calculates the Q function of a maximally connected graph state with removed cyclic edges
+void generate_acyclic_graphQ(const unsigned int &n_qubits) {
+    const std::string filename = "ac_q" + std::to_string(n_qubits)+".txt";
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    init_Adj(Adj,n_qubits,1);
+    add_cyclic_edges(n_qubits,Adj);
+    calc_save_graph_symQ(n_qubits,Adj,filename);
+}
+
+// Calculates the Q function of a cyclically connected graph state
+void generate_cyclic_graphQ(const unsigned int &n_qubits) {
+    const std::string filename = "cc_q" + std::to_string(n_qubits)+".txt";
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    init_Adj(Adj,n_qubits,0);
+    add_cyclic_edges(n_qubits,Adj);
+    calc_save_graph_symQ(n_qubits,Adj,filename);
+}
+
+// Calculates the Q function of a maximally connected graph state
+void generate_maxcon_graphQ(const unsigned int &n_qubits) {
+    const std::string filename = "mc_q" + std::to_string(n_qubits)+".txt";
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    init_Adj(Adj,n_qubits,1);
+    calc_save_graph_symQ(n_qubits,Adj,filename);
+}
+
+void generate_discon_graphQ(const unsigned int &n_qubits) {
+    const std::string filename = "dc_q" + std::to_string(n_qubits)+".txt";
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    init_Adj(Adj,n_qubits,0);
+    calc_save_graph_symQ(n_qubits,Adj,filename);
+}
+
 unsigned int parse_unsignedint(const std::string &input) {
     try {
         unsigned long u = std::stoul(input);
@@ -281,7 +315,7 @@ unsigned int parse_unsignedint(const std::string &input) {
     return 0;
 }
 
-void sel_calc_state(const unsigned int &n_qubits) {
+void sel_calc_state_symQ(const unsigned int &n_qubits) {
     bool selected = false;
     while (!selected) {
         std::cout << "Select the graph type [m(aximmally connected),c(yclically connected),a(cyclically connected),d(isconnected)]" << std::endl;
@@ -298,6 +332,28 @@ void sel_calc_state(const unsigned int &n_qubits) {
             selected = true;
         } else if (input == "dc" || input == "d") {
             generate_discon_symQ(n_qubits);
+            selected = true;
+        }
+    }
+}
+
+void sel_calc_state_graph_symQ(const unsigned int &n_qubits) {
+    bool selected = false;
+    while (!selected) {
+        std::cout << "Select the graph type [m(aximmally connected),c(yclically connected),a(cyclically connected),d(isconnected)]" << std::endl;
+        std::string input;
+        std::cin >> input;
+        if (input == "mc" || input == "m") {
+            generate_maxcon_graphQ(n_qubits);
+            selected = true;
+        } else if (input == "cc" || input == "c") {
+            generate_cyclic_graphQ(n_qubits);
+            selected = true;
+        } else if (input == "ac" || input == "a") {
+            generate_acyclic_graphQ(n_qubits);
+            selected = true;
+        } else if (input == "dc" || input == "d") {
+            generate_discon_graphQ(n_qubits);
             selected = true;
         }
     }
@@ -354,13 +410,22 @@ void calc_manual_graph() {
     calc_save_graph_symQ(N,Adj,filename);
 }
 
-int main() {
-    // std::string input;
-    // std::cout << "Enter the number of qubits" << std::endl;
-    // std::cin >> input;
-    // unsigned int n_qubits = parse_unsignedint(input);
-    // sel_calc_state(n_qubits);
-    
-    calc_manual_graph();
+void calc_gen_graph_symQ() {
+    unsigned int N = 0;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(N);
+    sel_calc_state_symQ(N);
+}
+
+void calc_gen_graph_graph_symQ() {
+    unsigned int N = 0;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(N);
+    sel_calc_state_graph_symQ(N);
+}
+
+int main() {    
+    calc_gen_graph_graph_symQ();
+
     return 0;
 }
