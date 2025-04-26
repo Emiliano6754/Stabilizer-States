@@ -9,6 +9,7 @@
 #include<chrono> // Timing
 #include<Eigen/Dense>
 #include<unsupported/Eigen/CXX11/Tensor>
+#include "displacedQfunc.h"
 
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
@@ -424,8 +425,83 @@ void calc_gen_graph_graph_symQ() {
     sel_calc_state_graph_symQ(N);
 }
 
+// Parses the graph_num graph (as numerated in the graph list) with n unlabeled nodes as the adjacency matrix in Adj from the edge list'. Assumes the file is named as n_qubits.txt
+void parse_graph_from_edge_list(const unsigned int &n_qubits, const unsigned int &graph_num, unsigned int* Adj) {
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string filename = std::to_string(n_qubits) + ".txt";
+    std::ifstream input_file(cwd.string()+"/data/graphs/"+filename,std::ifstream::in);
+    std::string line, first, second;
+    // unsigned int start = 0;
+    unsigned int pos = 1;
+    unsigned int next_sc = 0;
+    unsigned int comma_pos = 0;
+    unsigned int last_sc = 0;
+    bool finished = false;
+
+    if (input_file.is_open()) {
+        while (std::getline(input_file, line)) {
+            if (pos == graph_num) {
+                last_sc = line.find(':');
+                while(!finished) {
+                    next_sc = line.find(';', last_sc+1);
+                    comma_pos = line.find(',', last_sc);
+                    if (next_sc == std::string::npos || next_sc >= line.size()) {
+                        finished = true;
+                        next_sc = line.back();
+                    }
+                    first = line.substr(last_sc+1, comma_pos-last_sc-1);
+                    second = line.substr(comma_pos+1, next_sc-comma_pos-1);
+                    add_edge(Adj, n_qubits, std::stoul(first) - 1, std::stoul(second) - 1);
+                    
+                    last_sc = next_sc;
+                }
+                break;
+            }
+            pos++;
+        }
+    } else {
+        std::cout << "Could not parse graph" << std::endl;
+    }
+}
+
+// Calculates the full displaced entropies of a particular graph state, specified by the number of qubits and graph_num
+void calc_full_displaced_graph_entropy(const unsigned int &n_qubits, const unsigned int &graph_num) {
+    const unsigned int qubitstate_size = 1 << n_qubits;
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    parse_graph_from_edge_list(n_qubits, graph_num, Adj);
+    std::string filename = "entropies/" + std::to_string(n_qubits) + "q_" + std::to_string(graph_num) + ".txt"; // Use folder inside Qfuncs as this is secondary
+
+    Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
+    Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
+    auto start = std::chrono::high_resolution_clock::now();
+    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> duration = end - start;
+    std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
+
+    Eigen::MatrixXd entropies(qubitstate_size, qubitstate_size);
+    std::pair<unsigned int, unsigned int> max_displacement = {0, 0};
+    std::pair<unsigned int, unsigned int> min_displacement = {0, 0};
+    start = std::chrono::high_resolution_clock::now();
+    calc_full_displaced_maxmin_entropy(Qfunc, n_qubits, qubitstate_size, entropies, max_displacement, min_displacement);
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "Calculating displacements took " << duration.count() << "s" << std::endl;
+    save_Qfunc(entropies, filename);
+}
+
+void ask_manual_graph_params(unsigned int &n_qubits, unsigned int &graph_num) {
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    std::cout << "Enter the graph number" << std::endl;
+    get_unsignedint(graph_num);
+}
+
 int main() {    
-    calc_gen_graph_graph_symQ();
+    // calc_gen_graph_graph_symQ();`
+    unsigned int n_qubits, graph_num;
+    ask_manual_graph_params(n_qubits, graph_num);
+    calc_full_displaced_graph_entropy(n_qubits, graph_num);
 
     return 0;
 }
