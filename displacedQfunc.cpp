@@ -1,7 +1,9 @@
 #include "displacedQfunc.h"
 #include<Eigen/Dense>
-#include<unsupported/Eigen/CXX11/Tensor>
 #include<utility> // std::pair
+#include<iostream>
+#include<filesystem>
+#include<fstream>
 
 // Calculates the Rényi entropy after all possible displacements for the state given in Qfunc and outputs them in entropies. Both are assumed to already be of size 2^n_qubits x 2^n_qubits. For 15 qubits this requires >16 GB of ram. To circunvent this, the calculated values of entropy must be directly stored in memory
 void calc_full_displaced_entropy(const Eigen::MatrixXd &Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, Eigen::MatrixXd &entropies) {
@@ -49,6 +51,21 @@ void calc_full_displaced_maxmin_entropy(const Eigen::MatrixXd &Qfunc, const unsi
                 min_entropy = entropy(0);
                 min_displacement = {mu, nu};
             }
+        }
+    }
+}
+
+void calc_all_displaced_symQ(const Eigen::MatrixXd &Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, std::string filepath) {
+    Eigen::Tensor<double, 3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
+    for (unsigned int mu = 0; mu < qubitstate_size; mu++) {
+        for (unsigned int nu = 0; nu < qubitstate_size; nu++) {
+            sym_Qfunc.setZero();
+            for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
+                for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
+                    sym_Qfunc(std::popcount(alpha ^ mu), std::popcount(beta ^ nu), std::popcount(alpha ^ beta ^ mu ^ nu)) += Qfunc(alpha, beta); // Should test if it is faster to make the sums in symQfunc or Qfunc
+                }
+            }
+            save_symQfunc(sym_Qfunc, filepath + "/" + std::to_string(mu) + "," + std::to_string(nu) + ".txt");
         }
     }
 }
