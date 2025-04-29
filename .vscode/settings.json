@@ -133,6 +133,21 @@
     "hash_map": "cpp",
     "valarray": "cpp",
     "bitset": "cpp",
-    "tensor": "cpp"
+    "tensor": "cpp",
+    "core": "cpp",
+    "superlusupport": "cpp",
+    "*.evaluator": "cpp",
+    "*.traits": "cpp",
+    "adolcforward": "cpp",
+    "alignedvector3": "cpp",
+    "autodiff": "cpp",
+    "bvh": "cpp",
+    "eulerangles": "cpp",
+    "fft": "cpp",
+    "kroneckerproduct": "cpp",
+    "mprealsupport": "cpp",
+    "numericaldiff": "cpp",
+    "specialfunctions": "cpp",
+    "splines": "cpp"
   }
 }
