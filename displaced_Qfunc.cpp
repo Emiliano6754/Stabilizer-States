@@ -1,9 +1,58 @@
 #include "displaced_Qfunc.h"
 #include<Eigen/Dense>
-#include<utility> // std::pair
 #include<iostream>
 #include<filesystem>
 #include<fstream>
+#include<tuple>
+#include "discrete_space.h"
+
+template <typename ThreadInitFunc, typename WorkFunc, typename CriticalFunc>
+static void for_all_displaced_symQ(const unsigned int &n_qubits, const unsigned int &qubitstate_size, ThreadInitFunc init_thread_vars, WorkFunc operate_symQ, CriticalFunc critical_func)
+{
+    #pragma omp parallel
+    {
+        auto thread_vars = init_thread_vars();
+
+        Eigen::Tensor<double, 3> sym_Qfunc(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+
+        #pragma omp for
+        for (unsigned int mu = 0; mu < qubitstate_size; ++mu) {
+            for (unsigned int nu = 0; nu < qubitstate_size; ++nu) {
+                sym_Qfunc.setZero();
+                for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
+                    for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
+                        sym_Qfunc(std::popcount(alpha ^ mu), std::popcount(beta ^ nu), std::popcount(alpha ^ beta ^ mu ^ nu)) += Qfunc(alpha, beta); // Should test if it is faster to make the sums in symQfunc or Qfunc
+                    }
+                }
+                operate_symQ(sym_Qfunc, thread_vars, mu, nu);
+            }
+        }
+        #pragma omp critical
+        {
+            critical_func(thread_vars);
+        }
+    }
+}
+
+void max_min_distance(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, double &max_distance, double &min_distance, std::tuple<unsigned int, unsigned int> &max_displacement, std::tuple<unsigned int, unsigned int> &min_displacement) {
+    struct thread_variables {
+        double local_max_distance = 0;
+        double local_min_distance = 1e10; // Should check what the maximum distance can be
+        std::tuple<unsigned int, unsigned int> local_max_displacement = {0,0};
+        std::tuple<unsigned int, unsigned int> local_min_displacement = {0,0};
+    }
+    
+    for_all_displaced_symQ(n_qubits, qubitstate_size, 
+    [&]() {
+        return new thread_variables();
+    },
+    [&](Eigen::Tensor<double, 3> &sym_Qfunc) {
+
+    },
+    [&]() {
+        
+    });
+}
 
 // Calculates the Rényi entropy after all possible displacements for the state given in Qfunc and outputs them in entropies. Both are assumed to already be of size 2^n_qubits x 2^n_qubits. For 15 qubits this requires >16 GB of ram. To circunvent this, the calculated values of entropy must be directly stored in memory
 void calc_full_displaced_entropy(const Eigen::MatrixXd &Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, Eigen::MatrixXd &entropies) {
@@ -29,7 +78,7 @@ void calc_full_displaced_entropy(const Eigen::MatrixXd &Qfunc, const unsigned in
 }
 
 // Calculates the Rényi entropy after all possible displacements for the state given in Qfunc and outputs them in entropies. Both are assumed to already be of size 2^n_qubits x 2^n_qubits. Also stores the displacements required for maximum and minimum entropy in max_displacement and min_displacement, respectively, as pairs. For 15 qubits this requires >16 GB of ram. To circunvent this, the calculated values of entropy must be directly stored in memory
-void calc_full_displaced_maxmin_entropy(const Eigen::MatrixXd &Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, Eigen::MatrixXd &entropies, std::pair<unsigned int, unsigned int> &max_displacement, std::pair<unsigned int, unsigned int> &min_displacement) {
+void calc_full_displaced_maxmin_entropy(const Eigen::MatrixXd &Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, Eigen::MatrixXd &entropies, std::tuple<unsigned int, unsigned int> &max_displacement, std::tuple<unsigned int, unsigned int> &min_displacement) {
     Eigen::Array<Eigen::IndexPair<int>, 3, 1> contraction_indices = {Eigen::IndexPair<int>(0,0), Eigen::IndexPair<int>(1,1), Eigen::IndexPair<int>(2,2)};
     double global_max_entropy = 0;
     double global_min_entropy = 1;
@@ -39,8 +88,8 @@ void calc_full_displaced_maxmin_entropy(const Eigen::MatrixXd &Qfunc, const unsi
         Eigen::Tensor<double, 0> entropy; // Necessary to force evaluation of the tensor expressions
 
         // Let each thread calculate a minimum/maximum and then start comparing their values as they finish
-        std::pair<unsigned int, unsigned int> max_mu_nu = {0,0};
-        std::pair<unsigned int, unsigned int> min_mu_nu = {0,0};
+        std::tuple<unsigned int, unsigned int> max_mu_nu = {0,0};
+        std::tuple<unsigned int, unsigned int> min_mu_nu = {0,0};
         double max_entropy = 0;
         double min_entropy = 1;
         #pragma omp for nowait
