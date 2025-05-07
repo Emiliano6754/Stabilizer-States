@@ -7,7 +7,7 @@
 #include "discrete_space.h"
 
 template <typename ThreadInitFunc, typename WorkFunc, typename CriticalFunc>
-static void for_all_displaced_symQ(const unsigned int &n_qubits, const unsigned int &qubitstate_size, ThreadInitFunc init_thread_vars, WorkFunc operate_symQ, CriticalFunc critical_func)
+static void for_all_displaced_symQ(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, ThreadInitFunc init_thread_vars, WorkFunc operate_symQ, CriticalFunc critical_func)
 {
     #pragma omp parallel
     {
@@ -34,23 +34,45 @@ static void for_all_displaced_symQ(const unsigned int &n_qubits, const unsigned 
     }
 }
 
-void max_min_distance(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, double &max_distance, double &min_distance, std::tuple<unsigned int, unsigned int> &max_displacement, std::tuple<unsigned int, unsigned int> &min_displacement) {
+void max_min_displaced_distance(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, const Eigen::Tensor<double, 3> &symQ, double &max_distance, double &min_distance, std::tuple<unsigned int, unsigned int> &max_displacement, std::tuple<unsigned int, unsigned int> &min_displacement) {
     struct thread_variables {
+        Eigen::Tensor<double, 0> current_distance;
         double local_max_distance = 0;
         double local_min_distance = 1e10; // Should check what the maximum distance can be
         std::tuple<unsigned int, unsigned int> local_max_displacement = {0,0};
         std::tuple<unsigned int, unsigned int> local_min_displacement = {0,0};
-    }
-    
-    for_all_displaced_symQ(n_qubits, qubitstate_size, 
-    [&]() {
-        return new thread_variables();
-    },
-    [&](Eigen::Tensor<double, 3> &sym_Qfunc) {
+    };
 
+    Eigen::Tensor<double, 3> Gfunc = get_Gfunc(n_qubits, qubitstate_size, symQ);
+
+    max_distance = 0;
+    min_distance = 2000;
+    
+    for_all_displaced_symQ(n_qubits, qubitstate_size, Qfunc,
+    [&]()->thread_variables {
+        thread_variables vars;
+        return vars;
     },
-    [&]() {
-        
+    [&](const Eigen::Tensor<double, 3> &sym_Qfunc, thread_variables &thread_variables, const unsigned int &mu, const unsigned int &nu) {
+        thread_variables.current_distance = (Gfunc - sym_Qfunc).square().sum();
+        if (thread_variables.current_distance(0) > thread_variables.local_max_distance) {
+            thread_variables.local_max_distance = thread_variables.current_distance(0);
+            thread_variables.local_max_displacement = {mu, nu};
+        }
+        if (thread_variables.current_distance(0) < thread_variables.local_min_distance) {
+            thread_variables.local_min_distance = thread_variables.current_distance(0);
+            thread_variables.local_min_displacement = {mu, nu};
+        }
+    },
+    [&](const thread_variables &thread_variables) {
+        if (thread_variables.local_max_distance > max_distance) {
+            max_distance = thread_variables.local_max_distance;
+            max_displacement = thread_variables.local_max_displacement;
+        }
+        if (thread_variables.local_min_distance < min_distance) {
+            min_distance = thread_variables.local_min_distance;
+            min_displacement = thread_variables.local_min_displacement;
+        }
     });
 }
 

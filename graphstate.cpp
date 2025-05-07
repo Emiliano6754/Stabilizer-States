@@ -4,12 +4,15 @@
 #include<vector>
 #include<algorithm>
 #include<utility> // std::pair
+#include<tuple>
 #include<bitset> // Print numbers as binary easily
 #include<filesystem> // Current directory
 #include<chrono> // Timing
 #include<Eigen/Dense>
 #include<unsupported/Eigen/CXX11/Tensor>
 #include "displaced_Qfunc.h"
+
+// Cambiar pair a tuple
 
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
@@ -484,8 +487,8 @@ void calc_full_displaced_graph_entropy(const unsigned int &n_qubits, const unsig
     graphQ_from_file(n_qubits, qubitstate_size, graph_num, Adj, Qfunc);
 
     Eigen::MatrixXd entropies(qubitstate_size, qubitstate_size);
-    std::pair<unsigned int, unsigned int> max_displacement = {0, 0};
-    std::pair<unsigned int, unsigned int> min_displacement = {0, 0};
+    std::tuple<unsigned int, unsigned int> max_displacement = {0, 0};
+    std::tuple<unsigned int, unsigned int> min_displacement = {0, 0};
     auto start = std::chrono::high_resolution_clock::now();
     calc_full_displaced_maxmin_entropy(Qfunc, n_qubits, qubitstate_size, entropies, max_displacement, min_displacement);
     auto end = std::chrono::high_resolution_clock::now();
@@ -517,7 +520,33 @@ int main() {
     ask_manual_graph_params(n_qubits, graph_num);
     const unsigned int qubitstate_size = 1 << n_qubits;
     // calc_full_displaced_graph_entropy(n_qubits, qubitstate_size, graph_num);
-    calc_all_displaced_graph_symQ(n_qubits, qubitstate_size, graph_num);
+    // calc_all_displaced_graph_symQ(n_qubits, qubitstate_size, graph_num);
+    double max_distance = 0;
+    double min_distance = 1.0e10;
+    std::tuple<unsigned int, unsigned int> max_displacement = {0, 0};
+    std::tuple<unsigned int, unsigned int> min_displacement = {0, 0};
+
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
+    std::string filepath = std::to_string(n_qubits) + "q_" + std::to_string(graph_num);
+    parse_graph_from_edge_list(n_qubits, graph_num, Adj);
+    
+    Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
+    auto start = std::chrono::high_resolution_clock::now();
+    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> duration = end - start;
+    std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
+
+    start = std::chrono::high_resolution_clock::now();
+    max_min_displaced_distance(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, max_distance, min_distance, max_displacement, min_displacement);
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "Calculating displacements took " << duration.count() << "s" << std::endl;
+    std::cout << "Max distance: " << max_distance << std::endl;
+    std::cout << "Min distance: " << min_distance << std::endl;
+    std::cout << "Max displacement: " << std::get<0>(max_displacement) << ", " << std::get<1>(max_displacement) << std::endl;
+    std::cout << "Min displacement: " << std::get<0>(min_displacement) << ", " << std::get<1>(min_displacement) << std::endl;
 
     return 0;
 }

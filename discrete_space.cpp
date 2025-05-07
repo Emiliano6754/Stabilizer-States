@@ -28,7 +28,7 @@ void sym_space_loop(const unsigned int &n_qubits, Func func) {
     int k_max;
     for (int m = 0; m < n_qubits + 1; m++) {
         for (int n = 0; n < n_qubits + 1; n++) {
-            k_max = std::min(m + n, 2*n_qubits - m - n);
+            k_max = std::min(m + n, 2*static_cast<int>(n_qubits) - m - n);
             for (int k = std::abs(m - n); k < k_max; k += 2) {
                 func(m, n, k);
             }
@@ -44,6 +44,11 @@ Eigen::Tensor<double, 3> sym_space_mask(const unsigned int &n_qubits) {
         mask(m, n, k) = 1;
     });
     return mask;
+}
+
+// Returns the value of R_{m,n,k}
+inline double Rmnk(const unsigned int &n_qubits, const unsigned int &m, const unsigned int &n, const unsigned int &k) {
+    return static_cast<double>(fact(n_qubits)) / ( fact(n_qubits - (m+n+k)/2) * fact((-m+n+k)/2) * fact((m-n+k)/2) * fact((m+n-k)/2) );
 }
 
 // Returns a tensor filled with the values R_{m,n,k}
@@ -64,11 +69,6 @@ Eigen::Tensor<double, 3> get_Sv_Pfunc(const unsigned int &n_qubits, const unsign
         P(m, n, k) = Sv_Pfunc(n_qubits, qubitstate_size, v, m, n, k);
     });
     return P;
-}
-
-// Returns the P function of S•v, evaluated in (m, n, k),  where v is defined by the unit vector v = (sin(theta)cos(phi), sin(theta)sin(phi), cos(theta))
-inline double Sv_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const double &theta, const double &phi, const unsigned int &m, const unsigned int &n, const unsigned int &k) {
-    return std::sqrt(3.0) * (n_qubits - 2.0 * (m * std::sin(theta) * std::cos(phi) + n * std::sin(theta) * std::sin(phi) + k * std::cos(theta) ) ) / qubitstate_size;
 }
 
 // Returns a tensor with the P function of S•v, assuming v is normalized,  where v is defined by the unit vector v = (sin(theta)cos(phi), sin(theta)sin(phi), cos(theta))
@@ -200,8 +200,11 @@ Eigen::Tensor<double, 3> get_Gfunc(const unsigned int &n_qubits, const unsigned 
     Eigen::Vector3d x;
     double coeff = (1 << (n_qubits + 1)) / ( EIGEN_PI * n_qubits * std::sqrt(EIGEN_PI * n_qubits) * correlation_matrix.determinant() );
     sym_space_loop(n_qubits, [&](int &m, int &n, int &k) {
-        x = {m/n_qubits, n/n_qubits, k/n_qubits};
+        x = {static_cast<double>(m)/n_qubits, static_cast<double>(n)/n_qubits, static_cast<double>(k)/n_qubits};
         Gfunc(m, n, k) = coeff * std::exp(- n_qubits * (x - x_bar).transpose() * correlation_matrix * (x - x_bar) );
     });
     return Gfunc;
 }
+
+// To be implemented
+Eigen::Tensor<double, 3> get_symQ(const unsigned int &n_qubits, const unsigned int &qubitstate_size, Eigen::MatrixXd &Qfunc);

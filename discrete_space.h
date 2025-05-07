@@ -11,17 +11,17 @@ void sym_space_loop(const unsigned int &n_qubits, Func func);
 // Returns a mask with 1s on valid triples (m, n, k) inside the symmetric space and 0s everywhere else
 Eigen::Tensor<double, 3> sym_space_mask(const unsigned int &n_qubits);
 
-// Returns the value of R_{m,n,k}
-inline double Rmnk(const unsigned int &n_qubits, const unsigned int &m, const unsigned int &n, const unsigned int &k) {
-    return fact(n_qubits) / ( fact(n_qubits - (m+n+k)/2) * fact((-m+n+k)/2) * fact((m-n+k)/2) * fact((m+n-k)/2) );
-}
-
 // Returns a tensor filled with the values R_{m,n,k}
 Eigen::Tensor<double, 3> get_Rmnk(const unsigned int &n_qubits);
 
 // Returns the P function of S•v evaluated in (m, n, k), assuming v is normalized
 inline double Sv_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::Vector3d &v, const unsigned int &m, const unsigned int &n, const unsigned int &k) {
     return std::sqrt(3.0) * (n_qubits - 2.0 * (m * v(0) + n * v(1) + k * v(2) ) ) / qubitstate_size;
+}
+
+// Returns the P function of S•v, evaluated in (m, n, k),  where v is defined by the unit vector v = (sin(theta)cos(phi), sin(theta)sin(phi), cos(theta))
+inline double Sv_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const double &theta, const double &phi, const unsigned int &m, const unsigned int &n, const unsigned int &k) {
+    return std::sqrt(3.0) * (n_qubits - 2.0 * (m * std::sin(theta) * std::cos(phi) + n * std::sin(theta) * std::sin(phi) + k * std::cos(theta) ) ) / qubitstate_size;
 }
 
 // Returns a tensor with the P function of S•v, assuming v is normalized
