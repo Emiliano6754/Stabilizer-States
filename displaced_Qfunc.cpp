@@ -15,7 +15,7 @@ static void for_all_displaced_symQ(const unsigned int &n_qubits, const unsigned 
 
         Eigen::Tensor<double, 3> sym_Qfunc(n_qubits + 1, n_qubits + 1, n_qubits + 1);
 
-        #pragma omp for
+        #pragma omp for collapse(2)
         for (unsigned int mu = 0; mu < qubitstate_size; ++mu) {
             for (unsigned int nu = 0; nu < qubitstate_size; ++nu) {
                 sym_Qfunc.setZero();
@@ -34,7 +34,7 @@ static void for_all_displaced_symQ(const unsigned int &n_qubits, const unsigned 
     }
 }
 
-void max_min_displaced_distance(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, const Eigen::Tensor<double, 3> &symQ, double &max_distance, double &min_distance, std::tuple<unsigned int, unsigned int> &max_displacement, std::tuple<unsigned int, unsigned int> &min_displacement) {
+void minmax_displaced_distance(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, const Eigen::Tensor<double, 3> &symQ, double &max_distance, double &min_distance, std::tuple<unsigned int, unsigned int> &max_displacement, std::tuple<unsigned int, unsigned int> &min_displacement) {
     struct thread_variables {
         Eigen::Tensor<double, 0> current_distance;
         double local_max_distance = 0;

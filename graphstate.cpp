@@ -12,8 +12,6 @@
 #include<unsupported/Eigen/CXX11/Tensor>
 #include "displaced_Qfunc.h"
 
-// Cambiar pair a tuple
-
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
     return std::popcount(alpha) & 1;
@@ -96,7 +94,7 @@ void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const un
     #pragma omp parallel
     {
         std::complex<double> coeff = 0;
-        #pragma omp for
+        #pragma omp for collapse(2)
         for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
             for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
                 coeff = 0;
@@ -122,7 +120,7 @@ void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qu
     #pragma omp parallel
     {
         std::complex<double> coeff = 0;
-        #pragma omp for
+        #pragma omp for collapse(2)
         for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
             for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
                 coeff = 0;
@@ -379,21 +377,17 @@ void get_unsignedint(unsigned int &parsed_input) {
     }
 }
 
-void calc_manual_graph() {
-    unsigned int N = 0;
-    std::cout << "Enter the number of qubits" << std::endl;
-    get_unsignedint(N);
-    bool finished = false;
-    unsigned int* Adj = static_cast<unsigned int*>(_malloca(N * N * sizeof(unsigned int)));
-    init_Adj(Adj, N, 0);
+void parse_manual_graph(const unsigned int &n_qubits, unsigned int* Adj, std::string &filename) {
+    init_Adj(Adj, n_qubits, 0);
     unsigned int q1, q2;
+    bool finished = false;
     std::string input;
     while (!finished) {
         std::cout << "Enter a qubit connection" << std::endl;
         get_unsignedint(q1);
         get_unsignedint(q2);
-        if (q1 < N || q2 < N) {
-            add_edge(Adj, N, q1, q2);
+        if (q1 < n_qubits || q2 < n_qubits) {
+            add_edge(Adj, n_qubits, q1, q2);
             std::cout << "Enter n to exit" << std::endl;
             std::getline(std::cin, input);
             if (std::cin.peek() != '\n') {
@@ -410,8 +404,17 @@ void calc_manual_graph() {
     std::cout << "Enter the file prefix" << std::endl;
     input = "";
     std::cin >> input;
-    const std::string filename = input+"_q" + std::to_string(N)+".txt";
-    calc_save_graph_symQ(N,Adj,filename);
+    filename = input+"_q" + std::to_string(n_qubits)+".txt";
+}
+
+void calc_manual_graph() {
+    unsigned int n_qubits = 0;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    unsigned int* Adj = static_cast<unsigned int*>(_malloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    std::string filename = "";
+    parse_manual_graph(n_qubits, Adj, filename);
+    calc_save_graph_symQ(n_qubits, Adj, filename);
 }
 
 void calc_gen_graph_symQ() {
@@ -514,24 +517,62 @@ void calc_all_displaced_graph_symQ(const unsigned int &n_qubits, const unsigned 
     calc_all_displaced_symQ(Qfunc, n_qubits, qubitstate_size, filepath);
 }
 
-int main() {    
-    // calc_gen_graph_graph_symQ();`
-    unsigned int n_qubits, graph_num;
-    ask_manual_graph_params(n_qubits, graph_num);
+// Prompts for a type of graph, the number of qubits and returns its adjacency matrix and filename
+void generate_selected_graph(unsigned int &n_qubits, unsigned int *Adj, std::string &filename) {
+    bool selected = false;
+    while (!selected) {
+        std::cout << "Select the graph type [m(aximmally connected),c(yclically connected),a(cyclically connected),d(isconnected),g(raph num),e(dge list)]" << std::endl;
+        std::string input;
+        std::cin >> input;
+        if (input == "mc" || input == "m") {
+            init_Adj(Adj, n_qubits, 1);
+            filename = "mc_q" + std::to_string(n_qubits)+".txt";
+            selected = true;
+        } else if (input == "cc" || input == "c") {
+            init_Adj(Adj, n_qubits, 0);
+            add_cyclic_edges(n_qubits, Adj);
+            filename = "cc_q" + std::to_string(n_qubits)+".txt";
+            selected = true;
+        } else if (input == "ac" || input == "a") {
+            init_Adj(Adj, n_qubits, 1);
+            add_cyclic_edges(n_qubits, Adj);
+            filename = "ac_q" + std::to_string(n_qubits)+".txt";
+            selected = true;
+        } else if (input == "dc" || input == "d") {
+            init_Adj(Adj, n_qubits, 0);
+            filename = "dc_q" + std::to_string(n_qubits)+".txt";
+            selected = true;
+        } else if (input == "gn" || input == "g") {
+            unsigned int graph_num = 0;
+            std::cout << "Enter the graph number" << std::endl;
+            get_unsignedint(graph_num);
+            filename = "q" + std::to_string(n_qubits) + "_" + std::to_string(graph_num) + ".txt";
+            parse_graph_from_edge_list(n_qubits, graph_num, Adj);
+            selected = true;
+        } else if (input == "ed" || input == "e") {
+            parse_manual_graph(n_qubits, Adj, filename);
+            selected = true;
+        }
+    }
+}
+
+void manual_minmax_graph_distance() {
+    unsigned int n_qubits;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
     const unsigned int qubitstate_size = 1 << n_qubits;
-    // calc_full_displaced_graph_entropy(n_qubits, qubitstate_size, graph_num);
-    // calc_all_displaced_graph_symQ(n_qubits, qubitstate_size, graph_num);
+    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));;
+    std::string filename = "";
+    generate_selected_graph(n_qubits, Adj, filename);
+
     double max_distance = 0;
     double min_distance = 1.0e10;
     std::tuple<unsigned int, unsigned int> max_displacement = {0, 0};
     std::tuple<unsigned int, unsigned int> min_displacement = {0, 0};
 
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
     Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
-    std::string filepath = std::to_string(n_qubits) + "q_" + std::to_string(graph_num);
-    parse_graph_from_edge_list(n_qubits, graph_num, Adj);
-    
     Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
+    
     auto start = std::chrono::high_resolution_clock::now();
     graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
     auto end = std::chrono::high_resolution_clock::now();
@@ -539,7 +580,7 @@ int main() {
     std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
 
     start = std::chrono::high_resolution_clock::now();
-    max_min_displaced_distance(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, max_distance, min_distance, max_displacement, min_displacement);
+    minmax_displaced_distance(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, max_distance, min_distance, max_displacement, min_displacement);
     end = std::chrono::high_resolution_clock::now();
     duration = end - start;
     std::cout << "Calculating displacements took " << duration.count() << "s" << std::endl;
@@ -547,6 +588,14 @@ int main() {
     std::cout << "Min distance: " << min_distance << std::endl;
     std::cout << "Max displacement: " << std::get<0>(max_displacement) << ", " << std::get<1>(max_displacement) << std::endl;
     std::cout << "Min displacement: " << std::get<0>(min_displacement) << ", " << std::get<1>(min_displacement) << std::endl;
+}
+
+int main() {    
+    // calc_gen_graph_graph_symQ();
+    // calc_full_displaced_graph_entropy(n_qubits, qubitstate_size, graph_num);
+    // calc_all_displaced_graph_symQ(n_qubits, qubitstate_size, graph_num);
+    manual_minmax_graph_distance();
+    
 
     return 0;
 }
