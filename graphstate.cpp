@@ -70,24 +70,20 @@ void generate_sum_buffers(std::vector<std::complex<double>> &xi_product, std::ve
             adj_sum = ( (eta & 1) * Adj[0]);
             for (unsigned int n = 1; n < n_qubits; n++) {
                 adj_sum = adj_sum ^ ( ((eta >> n) & 1) * Adj[n]);
-                sign_sum += ((eta >> n) & 1) * std::popcount( Adj[n] & (eta & ((1 << n) - 1)) ); // Needs checking. Seems to output correctly
+                sign_sum += ((eta >> n) & 1) * std::popcount( Adj[n] & (eta & ((1 << n) - 1)) );
             }
             adj_sums[eta] = adj_sum;
-            // std::cout << std::bitset<8>(eta) << std::endl;
-            // std::cout << "adj_sums(" << std::bitset<8>(eta) << ") = " << std::bitset<8>(adj_sum) << std::endl;
-            // std::cout << "sign_sum(" << std::bitset<8>(eta) << ") = " << sign_sum << std::endl;
             hB = std::popcount(adj_sum);
             hC = std::popcount(eta);
             hBpC = std::popcount(adj_sum ^ eta);
             xi_product[eta] = (1.0 - 2.0 * (sign_sum & 1)) * norm_buffer[(hB - hC + hBpC)/2] * sum_buffer[(hC - hB + hBpC)/2] * subs_buffer[(hB + hC - hBpC)/2];
-            // std::cout << "h(eta) = " << std::to_string(std::popcount(eta)) << " xi_prod(eta) = " << xi_product[eta] << std::endl;
         }
     }
 }
 
 void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int* Adj) {
-    const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
-    double denom = 1.0 / qubitstate_size;
+    static const std::complex<double> xi = 0.5 * (sqrt(3)-1) * std::complex<double>(1.0,1.0);
+    static double denom = 1.0 / qubitstate_size;
     std::vector<std::complex<double>> xi_product(qubitstate_size); // Can be optimized to only store real value, as the imaginary part after summation should be zero
     std::vector<unsigned int> adj_sums(qubitstate_size);
     generate_sum_buffers(xi_product,adj_sums,n_qubits,qubitstate_size,xi,Adj);
@@ -102,9 +98,6 @@ void graphQ(Eigen::MatrixXd &Qfunc, Eigen::Tensor<double,3> &sym_Qfunc, const un
                     coeff += sign(trace(alpha,eta),trace(adj_sums[eta],beta^eta)) * xi_product[eta];
                 }
                 Qfunc(alpha,beta) = coeff.real() * denom;
-                // if (coeff.imag() > 0.1) {
-                //     std::cout << coeff.imag() << std::endl;
-                // }
                 sym_Qfunc(std::popcount(alpha),std::popcount(beta),std::popcount(alpha^beta)) += Qfunc(alpha,beta);
             }
         }
@@ -556,7 +549,7 @@ void generate_selected_graph(unsigned int &n_qubits, unsigned int *Adj, std::str
     }
 }
 
-void manual_minmax_graph_distance() {
+void manual_minmax_displaced_graph_distance() {
     unsigned int n_qubits;
     std::cout << "Enter the number of qubits" << std::endl;
     get_unsignedint(n_qubits);
@@ -580,7 +573,7 @@ void manual_minmax_graph_distance() {
     std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
 
     start = std::chrono::high_resolution_clock::now();
-    minmax_displaced_distance(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, max_distance, min_distance, max_displacement, min_displacement);
+    minmax_displaced_distance(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, min_distance, max_distance, min_displacement, max_displacement);
     end = std::chrono::high_resolution_clock::now();
     duration = end - start;
     std::cout << "Calculating displacements took " << duration.count() << "s" << std::endl;
@@ -590,11 +583,140 @@ void manual_minmax_graph_distance() {
     std::cout << "Min displacement: " << std::get<0>(min_displacement) << ", " << std::get<1>(min_displacement) << std::endl;
 }
 
+void manual_minmax_lClifford_graph_distance() {
+    unsigned int n_qubits;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const unsigned int qubitstate_size = 1 << n_qubits;
+    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));;
+    std::string filename = "";
+    generate_selected_graph(n_qubits, Adj, filename);
+
+    double max_distance = 0;
+    double min_distance = 1.0e10;
+    std::tuple<unsigned int, unsigned int, unsigned int> max_displacement = {0, 0, 0};
+    std::tuple<unsigned int, unsigned int, unsigned int> min_displacement = {0, 0, 0};
+
+    Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
+    Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> duration = end - start;
+    std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
+
+    start = std::chrono::high_resolution_clock::now();
+    minmax_lClifford_distance(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, min_distance, max_distance, min_displacement, max_displacement);
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "Calculating displacements took " << duration.count() << "s" << std::endl;
+    std::cout << "Max distance: " << max_distance << std::endl;
+    std::cout << "Min distance: " << min_distance << std::endl;
+    std::cout << "Max displacement: " << std::get<0>(max_displacement) << ", " << std::get<1>(max_displacement) << std::endl;
+    std::cout << "Min displacement: " << std::get<0>(min_displacement) << ", " << std::get<1>(min_displacement) << std::endl;
+}
+
+void parse_graph_line(const unsigned int &n_qubits, std::string &line, unsigned int* Adj) {
+    std::string first, second;
+    bool finished = false;
+    unsigned int next_sc = 0;
+    unsigned int comma_pos = 0;
+    unsigned int last_sc = 0;
+
+    init_Adj(Adj, n_qubits, 0);
+    last_sc = line.find(':');
+    while(!finished) {
+        next_sc = line.find(';', last_sc+1);
+        comma_pos = line.find(',', last_sc);
+        if (next_sc == std::string::npos || next_sc >= line.size()) {
+            finished = true;
+            next_sc = line.back();
+        }
+        first = line.substr(last_sc+1, comma_pos-last_sc-1);
+        second = line.substr(comma_pos+1, next_sc-comma_pos-1);
+        add_edge(Adj, n_qubits, std::stoul(first) - 1, std::stoul(second) - 1);
+        
+        last_sc = next_sc;
+    }
+}
+
+// Loops over all graphs with n_qubits, calculating both their Q and symmetrized Q functions and executes a particular function acting on them and the graph number
+template<typename LoopFunc> 
+void for_all_graphs(const unsigned int &n_qubits, LoopFunc operate_graph) {
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string graphs_suffix = std::to_string(n_qubits) + ".txt";
+    std::ifstream input_file(cwd.string()+"/data/graphs/"+graphs_suffix,std::ifstream::in);
+    std::string line;
+    unsigned int graph_num = 1;
+    
+    unsigned int qubitstate_size = 1 << n_qubits;
+    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));;
+    Eigen::MatrixXd graph_Qfunc(qubitstate_size, qubitstate_size);
+    Eigen::Tensor<double, 3> graph_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+
+    if (input_file.is_open()) {
+        while (std::getline(input_file, line)) {
+            parse_graph_line(n_qubits, line, Adj);
+            graphQ(graph_Qfunc, graph_symQ.setZero(), n_qubits, qubitstate_size, Adj);
+            
+            operate_graph(graph_Qfunc, graph_symQ, graph_num);
+            
+            graph_num++;
+        }
+    } else {
+        std::cout << "Could not parse graphs" << std::endl;
+    }
+}
+
+void minmax_all_lClifford_graphs_distance() {
+    unsigned int n_qubits;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const unsigned int qubitstate_size = 1 << n_qubits;
+
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string save_folder = cwd.string()+"/data/dist/";
+    std::string min_distances_filename = "min_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_distances_filename = "max_q" + std::to_string(n_qubits) + ".txt";
+    std::string min_lClifford_filename = "min_cliff_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_lClifford_filename = "max_cliff_q" + std::to_string(n_qubits) + ".txt";
+    std::ofstream min_distances_file(save_folder + min_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_distances_file(save_folder + max_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream min_lClifford_file(save_folder + min_lClifford_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_lClifford_file(save_folder + max_lClifford_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+
+    double min_distance;
+    double max_distance;
+    std::tuple<unsigned int, unsigned int, unsigned int> min_parameters;
+    std::tuple<unsigned int, unsigned int, unsigned int> max_parameters;
+    
+    if (min_distances_file.is_open() && max_distances_file.is_open() && min_lClifford_file.is_open() && max_lClifford_file.is_open()) {
+        for_all_graphs(
+            n_qubits,
+            [&](const Eigen::MatrixXd &graph_Qfunc, const Eigen::Tensor<double, 3> &graph_symQ, const unsigned int &graph_num) {
+                minmax_lClifford_distance(n_qubits, qubitstate_size, graph_Qfunc, graph_symQ, min_distance, max_distance, min_parameters, max_parameters);
+                min_distances_file << min_distance << "\n";
+                max_distances_file << max_distance << "\n";
+                min_lClifford_file << std::get<0>(min_parameters) << ", " << std::get<1>(min_parameters) << ", " << std::get<2>(min_parameters) << "\n";
+                max_lClifford_file << std::get<0>(max_parameters) << ", " << std::get<1>(max_parameters) << ", " << std::get<2>(max_parameters) << "\n";
+            }
+        );
+        min_distances_file.close();
+        max_distances_file.close();
+        min_lClifford_file.close();
+        max_lClifford_file.close();
+
+    } else {
+        std::cout << "Could not save minmax results" << std::endl;
+    }
+}
+
 int main() {    
     // calc_gen_graph_graph_symQ();
     // calc_full_displaced_graph_entropy(n_qubits, qubitstate_size, graph_num);
     // calc_all_displaced_graph_symQ(n_qubits, qubitstate_size, graph_num);
-    manual_minmax_graph_distance();
+    minmax_all_lClifford_graphs_distance();
     
 
     return 0;
