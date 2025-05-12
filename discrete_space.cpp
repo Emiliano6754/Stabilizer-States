@@ -2,6 +2,9 @@
 #include<cmath>
 #include<complex>
 
+
+#include<iostream>
+
 static constexpr double sqrt3 = 1.73205080756887;
 static constexpr std::complex<double> xi = std::complex<double>(0.5 * (sqrt3 - 1), 0.5 * (sqrt3 - 1));
 static constexpr std::complex<double> xi_conj = std::complex<double>(0.5 * (sqrt3 - 1), -0.5 * (sqrt3 - 1));
@@ -10,6 +13,9 @@ static constexpr std::complex<double> xi_min_inv = std::complex<double>(0.0, sqr
 static constexpr double xi_norm_inv = sqrt3; // (1 + abs(xi)^2)/(1 - abs(xi)^2)
 
 static unsigned int fact(const unsigned int &n) {
+    if (n == 0) { 
+        return 1;
+    }
     unsigned int res = n;
     for (unsigned int j = 2; j < n; j++) {
         res *= j;
@@ -48,7 +54,7 @@ Eigen::Tensor<double, 3> sym_space_mask(const unsigned int &n_qubits) {
 
 // Returns the value of R_{m,n,k}
 inline double Rmnk(const unsigned int &n_qubits, const unsigned int &m, const unsigned int &n, const unsigned int &k) {
-    return static_cast<double>(fact(n_qubits)) / ( fact(n_qubits - (m+n+k)/2) * fact((-m+n+k)/2) * fact((m-n+k)/2) * fact((m+n-k)/2) );
+    return static_cast<double>(fact(n_qubits)) / static_cast<double>( fact(n_qubits - (m+n+k)/2) * fact((-m+n+k)/2) * fact((m-n+k)/2) * fact((m+n-k)/2) );
 }
 
 // Returns a tensor filled with the values R_{m,n,k}
@@ -79,8 +85,8 @@ Eigen::Tensor<double, 3> get_Sv_Pfunc(const unsigned int &n_qubits, const unsign
 // Returns the P function of Sx/Sy/Sz. They are all equal, with the only difference being which variable is spanned by the single dimension. Notice that on broadcasting only valid triples (m, n, k) should be distinct from zero. If this is used to calculate averages, it is enough if the state sym Q is zero in those places
 Eigen::Tensor<double, 1> get_cartesian_S_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size) {
     Eigen::Tensor<double, 1> P(n_qubits + 1);
-    for (unsigned int m = 0; m < P.dimension(0); m++) {
-        P(m) = sqrt3 * (n_qubits - 2 * m) / qubitstate_size;
+    for (int m = 0; m < P.dimension(0); m++) {
+        P(m) = sqrt3 * (static_cast<double>(n_qubits) - 2 * m) / qubitstate_size;
     }
     return P;
 }
@@ -89,7 +95,7 @@ Eigen::Tensor<double, 1> get_cartesian_S_Pfunc(const unsigned int &n_qubits, con
 Eigen::Tensor<double, 1> get_cartesian_S2_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size) {
     Eigen::Tensor<double, 1> P(n_qubits + 1);
     for (unsigned int m = 0; m < P.dimension(0); m++) {
-        P(m) = ( n_qubits + xi_sum_inv*xi_sum_inv * ((n_qubits - 2*m)*(n_qubits - 2*m) - n_qubits) ) / qubitstate_size;
+        P(m) = ( n_qubits + xi_sum_inv*xi_sum_inv * ((static_cast<double>(n_qubits) - 2 * m)*(static_cast<double>(n_qubits) - 2 * m) - n_qubits) ) / qubitstate_size;
     }
     return P;
 }
@@ -99,7 +105,7 @@ Eigen::Tensor<double, 3> get_aSySz_Pfunc(const unsigned int &n_qubits, const uns
     Eigen::Tensor<double, 3> P(n_qubits + 1, n_qubits + 1, n_qubits + 1);
     P.setZero();
     sym_space_loop(n_qubits, [&](int &m, int &n, int &k) {
-        P(m, n, k) = 6 * ((n_qubits - 2*k) * (n_qubits - 2*n) - (n_qubits - 2*m)) / qubitstate_size;
+        P(m, n, k) = 6 * ((static_cast<double>(n_qubits) - 2 * k) * (static_cast<double>(n_qubits) - 2 * n) - (static_cast<double>(n_qubits) - 2 * m)) / qubitstate_size;
     });
     return P;
 }
@@ -109,7 +115,7 @@ Eigen::Tensor<double, 3> get_aSzSx_Pfunc(const unsigned int &n_qubits, const uns
     Eigen::Tensor<double, 3> P(n_qubits + 1, n_qubits + 1, n_qubits + 1);
     P.setZero();
     sym_space_loop(n_qubits, [&](int &m, int &n, int &k) {
-        P(m, n, k) = 6 * ((n_qubits - 2*m) * (n_qubits - 2*n) - n_qubits) / qubitstate_size;
+        P(m, n, k) = 6 * ((static_cast<double>(n_qubits) - 2 * m) * (static_cast<double>(n_qubits) - 2 * n) - n_qubits) / qubitstate_size;
     });
     return P;
 }
@@ -119,7 +125,7 @@ Eigen::Tensor<double, 3> get_aSxSy_Pfunc(const unsigned int &n_qubits, const uns
     Eigen::Tensor<double, 3> P(n_qubits + 1, n_qubits + 1, n_qubits + 1);
     P.setZero();
     sym_space_loop(n_qubits, [&](int &m, int &n, int &k) {
-        P(m, n, k) = 6 * ((n_qubits - 2*m) * (n_qubits - 2*k) - (n_qubits - 2*n)) / qubitstate_size;
+        P(m, n, k) = 6 * ((static_cast<double>(n_qubits) - 2 * m) * (static_cast<double>(n_qubits) - 2 * k) - (static_cast<double>(n_qubits) - 2 * n)) / qubitstate_size;
     });
     return P;
 }
@@ -128,8 +134,9 @@ Eigen::Tensor<double, 3> get_aSxSy_Pfunc(const unsigned int &n_qubits, const uns
 template <typename TensorExpr>
 void sym_operator_average(const TensorExpr &operator_symP, const Eigen::Tensor<double, 3> &state_symQ, double &average) {
     Eigen::Tensor<double, 0> average_result;
-    Eigen::Array<Eigen::IndexPair<int>, 3, 1> contraction_indices = {Eigen::IndexPair<int>(0,0), Eigen::IndexPair<int>(1,1), Eigen::IndexPair<int>(2,2)};
-    average_result = state_symQ.contract(operator_symP, contraction_indices);
+    // Eigen::Array<Eigen::IndexPair<int>, 3, 1> contraction_indices = {Eigen::IndexPair<int>(0,0), Eigen::IndexPair<int>(1,1), Eigen::IndexPair<int>(2,2)};
+    // average_result = state_symQ.contract(operator_symP, contraction_indices);
+    average_result = (state_symQ * operator_symP).sum();
     average = average_result(0);
 }
 
@@ -187,7 +194,6 @@ Eigen::Matrix3d get_correlation_matrix(const unsigned int &n_qubits, const unsig
         {sqrt3 * Sz, 2.0 * n_qubits, sqrt3 * Sz},
         {sqrt3 * Sy, sqrt3 * Sx, 2.0 * n_qubits}
     };
-
     return (Gamma + Lambda) / (6 * n_qubits);
 }
 
@@ -204,6 +210,19 @@ Eigen::Tensor<double, 3> get_Gfunc(const unsigned int &n_qubits, const unsigned 
         Gfunc(m, n, k) = coeff * std::exp(- n_qubits * (x - x_bar).transpose() * correlation_matrix * (x - x_bar) );
     });
     return Gfunc;
+}
+
+// Returns the Gaussian envelope of the state SymQ in Gfunc to avoid copying
+void get_Gfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::Tensor<double, 3> &symQ, Eigen::Tensor<double, 3> &Gfunc) {
+    double Sx, Sy, Sz;
+    Eigen::Matrix3d correlation_matrix = get_correlation_matrix(n_qubits, qubitstate_size, symQ, Sx, Sy, Sz);
+    Eigen::Vector3d x_bar = {0.5 - Sx/(2 * sqrt3 * n_qubits), 0.5 - Sy/(2 * sqrt3 * n_qubits), 0.5 - Sz/(2 * sqrt3 * n_qubits)};
+    Eigen::Vector3d x;
+    double coeff = (1 << (n_qubits + 1)) / ( EIGEN_PI * n_qubits * std::sqrt(EIGEN_PI * n_qubits) * correlation_matrix.determinant() );
+    sym_space_loop(n_qubits, [&](int &m, int &n, int &k) {
+        x = {static_cast<double>(m)/n_qubits, static_cast<double>(n)/n_qubits, static_cast<double>(k)/n_qubits};
+        Gfunc(m, n, k) = coeff * std::exp(- n_qubits * (x - x_bar).transpose() * correlation_matrix * (x - x_bar) );
+    });
 }
 
 // To be implemented

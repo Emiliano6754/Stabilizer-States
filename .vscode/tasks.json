@@ -86,6 +86,8 @@
                 "-msse2",
                 "${file}",
                 "GF2N.cpp",
+                "discrete_space.cpp",
+                "displaced_Qfunc.cpp",
                 "-o",
                 "${workspaceFolder}\\main.exe"
             ],

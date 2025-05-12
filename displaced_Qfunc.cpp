@@ -16,7 +16,7 @@ static void for_all_displaced_symQ(const unsigned int &n_qubits, const unsigned 
         Eigen::Tensor<double, 3> sym_Qfunc(n_qubits + 1, n_qubits + 1, n_qubits + 1);
         unsigned int alpha_p, beta_p;
 
-        #pragma omp for collapse(2)
+        #pragma omp for collapse(2) nowait
         for (unsigned int mu = 0; mu < qubitstate_size; ++mu) {
             for (unsigned int nu = 0; nu < qubitstate_size; ++nu) {
                 sym_Qfunc.setZero();
@@ -48,7 +48,7 @@ static void for_all_lClifford_symQ(const unsigned int &n_qubits, const unsigned 
         unsigned int alpha_p, beta_p;
         unsigned int alpha_pp, beta_pp;
 
-        #pragma omp for collapse(3)
+        #pragma omp for collapse(3) nowait
         for (unsigned int mu = 0; mu < qubitstate_size; ++mu) {
             for (unsigned int nu = 0; nu < qubitstate_size; ++nu) {
                 for (unsigned int gamma = 0; gamma < qubitstate_size; gamma++) {
@@ -73,88 +73,106 @@ static void for_all_lClifford_symQ(const unsigned int &n_qubits, const unsigned 
     }
 }
 
-// Minimizes and maximizes the distance to the gaussian envelope of a Q function after displacements Z^mu X^nu. Returns the minimum and maximum distance, together with the corresponding parameters of the optimizers, in the order {mu, nu}
-void minmax_displaced_distance(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, const Eigen::Tensor<double, 3> &symQ, double &min_distance, double &max_distance, std::tuple<unsigned int, unsigned int> &min_displacement, std::tuple<unsigned int, unsigned int> &max_displacement) {
+// Maximizes the Hellinger distance of a Q function to its gaussian envelope and the Rmnk distribution, after displacements Z^mu X^nu. Returns both maximum distances, in the order {distance to G, distance to R}, together with the corresponding parameters of the optimizers in the order {mu, nu}, in the same order of distance to G then to R
+void max_displaced_distances(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, const Eigen::Tensor<double, 3> &symQ, double &max_distance_G, double &max_distance_R, std::tuple<unsigned int, unsigned int> &max_displacement_G, std::tuple<unsigned int, unsigned int> &max_displacement_R) {
     struct thread_variables {
         Eigen::Tensor<double, 0> current_distance;
-        double local_max_distance = 0;
-        double local_min_distance = 1e10; // Should check what the maximum distance can be
-        std::tuple<unsigned int, unsigned int> local_max_displacement = {0, 0};
-        std::tuple<unsigned int, unsigned int> local_min_displacement = {0, 0};
+        Eigen::Tensor<double, 3> Gfunc;
+        double local_max_G = 0;
+        double local_max_R = 0;
+        std::tuple<unsigned int, unsigned int> local_max_G_displacement = {0, 0};
+        std::tuple<unsigned int, unsigned int> local_max_R_displacement = {0, 0};
     };
 
-    Eigen::Tensor<double, 3> Gfunc = get_Gfunc(n_qubits, qubitstate_size, symQ);
+    Eigen::Tensor<double, 3> Rmnk = get_Rmnk(n_qubits);
 
-    max_distance = 0;
-    min_distance = 1e10;
+    max_distance_G = 0;
+    max_distance_R = 0;
     
     for_all_displaced_symQ(n_qubits, qubitstate_size, Qfunc,
     [&]()->thread_variables {
         thread_variables vars;
+        vars.Gfunc = Eigen::Tensor<double, 3>(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+        vars.Gfunc.setZero();
         return vars;
     },
     [&](const Eigen::Tensor<double, 3> &sym_Qfunc, thread_variables &thread_variables, const unsigned int &mu, const unsigned int &nu) {
-        thread_variables.current_distance = (Gfunc - sym_Qfunc).square().sum();
-        if (thread_variables.current_distance(0) > thread_variables.local_max_distance) {
-            thread_variables.local_max_distance = thread_variables.current_distance(0);
-            thread_variables.local_max_displacement = {mu, nu};
+        // Calculate the new Gaussian envelope G
+        get_Gfunc(n_qubits, qubitstate_size, sym_Qfunc, thread_variables.Gfunc);
+        // Calculate distance to G
+        thread_variables.current_distance = (thread_variables.Gfunc * sym_Qfunc).sqrt().sum();
+        if (( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_G) {
+            thread_variables.local_max_G = ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
+            thread_variables.local_max_G_displacement = {mu, nu};
         }
-        if (thread_variables.current_distance(0) < thread_variables.local_min_distance) {
-            thread_variables.local_min_distance = thread_variables.current_distance(0);
-            thread_variables.local_min_displacement = {mu, nu};
+        // Calculate distance to R
+        thread_variables.current_distance = (Rmnk * sym_Qfunc).sqrt().sum();
+        if (( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_R) {
+            thread_variables.local_max_R = ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
+            thread_variables.local_max_R_displacement = {mu, nu};
         }
     },
     [&](const thread_variables &thread_variables) {
-        if (thread_variables.local_max_distance > max_distance) {
-            max_distance = thread_variables.local_max_distance;
-            max_displacement = thread_variables.local_max_displacement;
+        // Compare distances to thread local optimizers and maximize globally
+        if (thread_variables.local_max_G > max_distance_G) {
+            max_distance_G = thread_variables.local_max_G;
+            max_displacement_G = thread_variables.local_max_G_displacement;
         }
-        if (thread_variables.local_min_distance < min_distance) {
-            min_distance = thread_variables.local_min_distance;
-            min_displacement = thread_variables.local_min_displacement;
+        if (thread_variables.local_max_R > max_distance_R) {
+            max_distance_R = thread_variables.local_max_R;
+            max_displacement_R = thread_variables.local_max_R_displacement;
         }
     });
 }
 
-// Minimizes and maximizes the distance to the gaussian envelope of a Q function after displacements and Hadamard gates H^gamma Z^mu X^nu (it is assumed that the displacement is applied first). Returns the minimum and maximum distance, together with the corresponding parameters of the optimizers in the order {mu, nu, gamma}
-void minmax_lClifford_distance(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, const Eigen::Tensor<double, 3> &symQ, double &min_distance, double &max_distance, std::tuple<unsigned int, unsigned int, unsigned int> &min_Clifford, std::tuple<unsigned int, unsigned int, unsigned int> &max_Clifford) {
+// Maximizes the Hellinger distance of a Q function to its gaussian envelope and the Rmnk distribution, after displacements and Hadamard gates H^gamma Z^mu X^nu (it is assumed that the displacement is applied first). Returns both maximum distances, in the order {distance to G, distance to R}, together with the corresponding parameters of the optimizers in the order {mu, nu, gamma}, in the same order of distance to G then to R
+void max_lClifford_distances(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, const Eigen::Tensor<double, 3> &symQ, double &max_distance_G, double &max_distance_R, std::tuple<unsigned int, unsigned int, unsigned int> &max_Clifford_G, std::tuple<unsigned int, unsigned int, unsigned int> &max_Clifford_R) {
     struct thread_variables {
         Eigen::Tensor<double, 0> current_distance;
-        double local_min_distance = 1e10; // Should check what the maximum distance can be
-        double local_max_distance = 0;
-        std::tuple<unsigned int, unsigned int, unsigned int> local_min_Clifford = {0, 0, 0};
-        std::tuple<unsigned int, unsigned int, unsigned int> local_max_Clifford = {0, 0, 0};
+        Eigen::Tensor<double, 3> Gfunc;
+        double local_max_G = 0;
+        double local_max_R = 0;
+        std::tuple<unsigned int, unsigned int, unsigned int> local_max_G_Clifford = {0, 0, 0};
+        std::tuple<unsigned int, unsigned int, unsigned int> local_max_R_Clifford = {0, 0, 0};
     };
 
-    Eigen::Tensor<double, 3> Gfunc = get_Gfunc(n_qubits, qubitstate_size, symQ);
+    Eigen::Tensor<double, 3> Rmnk = get_Rmnk(n_qubits);
 
-    max_distance = 0;
-    min_distance = 1e10;
+    max_distance_G = 0;
+    max_distance_R = 0;
     
     for_all_lClifford_symQ(n_qubits, qubitstate_size, Qfunc,
     [&]()->thread_variables {
         thread_variables vars;
+        vars.Gfunc = Eigen::Tensor<double, 3>(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+        vars.Gfunc.setZero();
         return vars;
     },
     [&](const Eigen::Tensor<double, 3> &sym_Qfunc, thread_variables &thread_variables, const unsigned int &mu, const unsigned int &nu, const unsigned int &gamma) {
-        thread_variables.current_distance = (Gfunc - sym_Qfunc).square().sum();
-        if (thread_variables.current_distance(0) > thread_variables.local_max_distance) {
-            thread_variables.local_max_distance = thread_variables.current_distance(0);
-            thread_variables.local_max_Clifford = {mu, nu, gamma};
+        // Calculate the new Gaussian envelope G
+        get_Gfunc(n_qubits, qubitstate_size, sym_Qfunc, thread_variables.Gfunc);
+        // Calculate distance to G
+        thread_variables.current_distance = (thread_variables.Gfunc * sym_Qfunc).sqrt().sum();
+        if ( ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_G) {
+            thread_variables.local_max_G = ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
+            thread_variables.local_max_G_Clifford = {mu, nu, gamma};
         }
-        if (thread_variables.current_distance(0) < thread_variables.local_min_distance) {
-            thread_variables.local_min_distance = thread_variables.current_distance(0);
-            thread_variables.local_min_Clifford = {mu, nu, gamma};
+        // Calculate distance to R
+        thread_variables.current_distance = (Rmnk * sym_Qfunc).sqrt().sum();
+        if (( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_R) {
+            thread_variables.local_max_R = ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
+            thread_variables.local_max_R_Clifford = {mu, nu, gamma};
         }
     },
     [&](const thread_variables &thread_variables) {
-        if (thread_variables.local_max_distance > max_distance) {
-            max_distance = thread_variables.local_max_distance;
-            max_Clifford = thread_variables.local_max_Clifford;
+        // Compare distances to thread local optimizers and maximize globally
+        if (thread_variables.local_max_G > max_distance_G) {
+            max_distance_G = thread_variables.local_max_G;
+            max_Clifford_G = thread_variables.local_max_G_Clifford;
         }
-        if (thread_variables.local_min_distance < min_distance) {
-            min_distance = thread_variables.local_min_distance;
-            min_Clifford = thread_variables.local_min_Clifford;
+        if (thread_variables.local_max_R > max_distance_R) {
+            max_distance_R = thread_variables.local_max_R;
+            max_Clifford_R = thread_variables.local_max_R_Clifford;
         }
     });
 }

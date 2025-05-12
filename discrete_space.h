@@ -67,4 +67,7 @@ Eigen::Matrix3d get_correlation_matrix(const unsigned int &n_qubits, const unsig
 // Returns the Gaussian envelope of the state SymQ
 Eigen::Tensor<double, 3> get_Gfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::Tensor<double, 3> &symQ);
 
+// Returns the Gaussian envelope of the state SymQ in Gfunc to avoid copying
+void get_Gfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::Tensor<double, 3> &symQ, Eigen::Tensor<double, 3> &Gfunc);
+
 #endif

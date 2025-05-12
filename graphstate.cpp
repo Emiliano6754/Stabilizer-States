@@ -573,7 +573,7 @@ void manual_minmax_displaced_graph_distance() {
     std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
 
     start = std::chrono::high_resolution_clock::now();
-    minmax_displaced_distance(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, min_distance, max_distance, min_displacement, max_displacement);
+    max_displaced_distances(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, min_distance, max_distance, min_displacement, max_displacement);
     end = std::chrono::high_resolution_clock::now();
     duration = end - start;
     std::cout << "Calculating displacements took " << duration.count() << "s" << std::endl;
@@ -607,7 +607,7 @@ void manual_minmax_lClifford_graph_distance() {
     std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
 
     start = std::chrono::high_resolution_clock::now();
-    minmax_lClifford_distance(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, min_distance, max_distance, min_displacement, max_displacement);
+    max_lClifford_distances(n_qubits, qubitstate_size, Qfunc, sym_Qfunc, min_distance, max_distance, min_displacement, max_displacement);
     end = std::chrono::high_resolution_clock::now();
     duration = end - start;
     std::cout << "Calculating displacements took " << duration.count() << "s" << std::endl;
@@ -669,43 +669,86 @@ void for_all_graphs(const unsigned int &n_qubits, LoopFunc operate_graph) {
     }
 }
 
-void minmax_all_lClifford_graphs_distance() {
+void max_all_displaced_graphs_distances() {
     unsigned int n_qubits;
     std::cout << "Enter the number of qubits" << std::endl;
     get_unsignedint(n_qubits);
     const unsigned int qubitstate_size = 1 << n_qubits;
 
     const std::filesystem::path cwd = std::filesystem::current_path();
-    std::string save_folder = cwd.string()+"/data/dist/";
-    std::string min_distances_filename = "min_q" + std::to_string(n_qubits) + ".txt";
-    std::string max_distances_filename = "max_q" + std::to_string(n_qubits) + ".txt";
-    std::string min_lClifford_filename = "min_cliff_q" + std::to_string(n_qubits) + ".txt";
-    std::string max_lClifford_filename = "max_cliff_q" + std::to_string(n_qubits) + ".txt";
-    std::ofstream min_distances_file(save_folder + min_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
-    std::ofstream max_distances_file(save_folder + max_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
-    std::ofstream min_lClifford_file(save_folder + min_lClifford_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
-    std::ofstream max_lClifford_file(save_folder + max_lClifford_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::string save_folder = cwd.string()+"/data/disp_dist/";
+    std::string max_G_distances_filename = "max_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_R_distances_filename = "max_R_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_disp_G_filename = "max_disp_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_disp_R_filename = "max_disp_R_q" + std::to_string(n_qubits) + ".txt";
+    std::ofstream max_G_distances_file(save_folder + max_G_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_R_distances_file(save_folder + max_R_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_disp_G_file(save_folder + max_disp_G_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_disp_R_file(save_folder + max_disp_R_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
 
-    double min_distance;
-    double max_distance;
-    std::tuple<unsigned int, unsigned int, unsigned int> min_parameters;
-    std::tuple<unsigned int, unsigned int, unsigned int> max_parameters;
+    double max_G_distance;
+    double max_R_distance;
+    std::tuple<unsigned int, unsigned int> max_G_parameters;
+    std::tuple<unsigned int, unsigned int> max_R_parameters;
     
-    if (min_distances_file.is_open() && max_distances_file.is_open() && min_lClifford_file.is_open() && max_lClifford_file.is_open()) {
+    if (max_G_distances_file.is_open() && max_R_distances_file.is_open() && max_disp_G_file.is_open() && max_disp_R_file.is_open()) {
         for_all_graphs(
             n_qubits,
             [&](const Eigen::MatrixXd &graph_Qfunc, const Eigen::Tensor<double, 3> &graph_symQ, const unsigned int &graph_num) {
-                minmax_lClifford_distance(n_qubits, qubitstate_size, graph_Qfunc, graph_symQ, min_distance, max_distance, min_parameters, max_parameters);
-                min_distances_file << min_distance << "\n";
-                max_distances_file << max_distance << "\n";
-                min_lClifford_file << std::get<0>(min_parameters) << ", " << std::get<1>(min_parameters) << ", " << std::get<2>(min_parameters) << "\n";
-                max_lClifford_file << std::get<0>(max_parameters) << ", " << std::get<1>(max_parameters) << ", " << std::get<2>(max_parameters) << "\n";
+                max_displaced_distances(n_qubits, qubitstate_size, graph_Qfunc, graph_symQ, max_G_distance, max_R_distance, max_G_parameters, max_R_parameters);
+                max_G_distances_file << max_G_distance << "\n";
+                max_R_distances_file << max_R_distance << "\n";
+                max_disp_G_file << std::get<0>(max_G_parameters) << ", " << std::get<1>(max_G_parameters) << "\n";
+                max_disp_R_file << std::get<0>(max_R_parameters) << ", " << std::get<1>(max_R_parameters) << "\n";
             }
         );
-        min_distances_file.close();
-        max_distances_file.close();
-        min_lClifford_file.close();
-        max_lClifford_file.close();
+        max_G_distances_file.close();
+        max_R_distances_file.close();
+        max_disp_G_file.close();
+        max_disp_R_file.close();
+
+    } else {
+        std::cout << "Could not save minmax results" << std::endl;
+    }
+}
+
+void max_all_lClifford_graphs_distances() {
+    unsigned int n_qubits;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const unsigned int qubitstate_size = 1 << n_qubits;
+
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string save_folder = cwd.string()+"/data/clif_dist/";
+    std::string max_G_distances_filename = "max_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_R_distances_filename = "max_R_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_lClifford_G_filename = "max_cliff_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_lClifford_R_filename = "max_cliff_R_q" + std::to_string(n_qubits) + ".txt";
+    std::ofstream max_G_distances_file(save_folder + max_G_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_R_distances_file(save_folder + max_R_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_lClifford_G_file(save_folder + max_lClifford_G_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_lClifford_R_file(save_folder + max_lClifford_R_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+
+    double max_G_distance;
+    double max_R_distance;
+    std::tuple<unsigned int, unsigned int, unsigned int> max_G_parameters;
+    std::tuple<unsigned int, unsigned int, unsigned int> max_R_parameters;
+    
+    if (max_G_distances_file.is_open() && max_R_distances_file.is_open() && max_lClifford_G_file.is_open() && max_lClifford_R_file.is_open()) {
+        for_all_graphs(
+            n_qubits,
+            [&](const Eigen::MatrixXd &graph_Qfunc, const Eigen::Tensor<double, 3> &graph_symQ, const unsigned int &graph_num) {
+                max_lClifford_distances(n_qubits, qubitstate_size, graph_Qfunc, graph_symQ, max_G_distance, max_R_distance, max_G_parameters, max_R_parameters);
+                max_G_distances_file << max_G_distance << "\n";
+                max_R_distances_file << max_R_distance << "\n";
+                max_lClifford_G_file << std::get<0>(max_G_parameters) << ", " << std::get<1>(max_G_parameters) << ", " << std::get<2>(max_G_parameters) << "\n";
+                max_lClifford_R_file << std::get<0>(max_R_parameters) << ", " << std::get<1>(max_R_parameters) << ", " << std::get<2>(max_R_parameters) << "\n";
+            }
+        );
+        max_G_distances_file.close();
+        max_R_distances_file.close();
+        max_lClifford_G_file.close();
+        max_lClifford_R_file.close();
 
     } else {
         std::cout << "Could not save minmax results" << std::endl;
@@ -716,7 +759,8 @@ int main() {
     // calc_gen_graph_graph_symQ();
     // calc_full_displaced_graph_entropy(n_qubits, qubitstate_size, graph_num);
     // calc_all_displaced_graph_symQ(n_qubits, qubitstate_size, graph_num);
-    minmax_all_lClifford_graphs_distance();
+    // max_all_lClifford_graphs_distances();
+    max_all_displaced_graphs_distances();
     
 
     return 0;
