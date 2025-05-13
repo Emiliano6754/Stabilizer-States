@@ -88,6 +88,8 @@ void max_displaced_distances(const unsigned int &n_qubits, const unsigned int &q
 
     max_distance_G = 0;
     max_distance_R = 0;
+
+    double norm_const = qubitstate_size * std::sqrt(qubitstate_size);
     
     for_all_displaced_symQ(n_qubits, qubitstate_size, Qfunc,
     [&]()->thread_variables {
@@ -101,15 +103,15 @@ void max_displaced_distances(const unsigned int &n_qubits, const unsigned int &q
         get_Gfunc(n_qubits, qubitstate_size, sym_Qfunc, thread_variables.Gfunc);
         // Calculate distance to G
         thread_variables.current_distance = (thread_variables.Gfunc * sym_Qfunc).sqrt().sum();
-        if (( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_G) {
-            thread_variables.local_max_G = ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
+        if ( 1.0 - ( thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_G) {
+            thread_variables.local_max_G = 1.0 - ( thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
             thread_variables.local_max_G_displacement = {mu, nu};
         }
         // Calculate distance to R
         thread_variables.current_distance = (Rmnk * sym_Qfunc).sqrt().sum();
-        // std::cout << ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) << std::endl;
-        if (( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_R) {
-            thread_variables.local_max_R = ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
+        // The actual identity Q function is given by Rmnk/2^N, thus divide the distance by an extra 2^N/2
+        if ( 1.0 - ( thread_variables.current_distance(0) / norm_const ) > thread_variables.local_max_R) {
+            thread_variables.local_max_R = 1.0 - ( thread_variables.current_distance(0) / norm_const );
             thread_variables.local_max_R_displacement = {mu, nu};
         }
     },
@@ -141,6 +143,8 @@ void max_lClifford_distances(const unsigned int &n_qubits, const unsigned int &q
 
     max_distance_G = 0;
     max_distance_R = 0;
+
+    double norm_const = qubitstate_size * std::sqrt(qubitstate_size);
     
     for_all_lClifford_symQ(n_qubits, qubitstate_size, Qfunc,
     [&]()->thread_variables {
@@ -154,14 +158,15 @@ void max_lClifford_distances(const unsigned int &n_qubits, const unsigned int &q
         get_Gfunc(n_qubits, qubitstate_size, sym_Qfunc, thread_variables.Gfunc);
         // Calculate distance to G
         thread_variables.current_distance = (thread_variables.Gfunc * sym_Qfunc).sqrt().sum();
-        if ( ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_G) {
-            thread_variables.local_max_G = ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
+        if ( 1.0 - ( thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_G) {
+            thread_variables.local_max_G = 1.0 - ( thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
             thread_variables.local_max_G_Clifford = {mu, nu, gamma};
         }
         // Calculate distance to R
         thread_variables.current_distance = (Rmnk * sym_Qfunc).sqrt().sum();
-        if (( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_R) {
-            thread_variables.local_max_R = ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
+        // The actual identity Q function is given by Rmnk/2^N, thus divide the distance by an extra 2^N/2
+        if ( 1.0 - ( thread_variables.current_distance(0) / norm_const ) > thread_variables.local_max_R) {
+            thread_variables.local_max_R = 1.0 - ( thread_variables.current_distance(0) / norm_const );
             thread_variables.local_max_R_Clifford = {mu, nu, gamma};
         }
     },

@@ -759,8 +759,8 @@ int main() {
     // calc_gen_graph_graph_symQ();
     // calc_full_displaced_graph_entropy(n_qubits, qubitstate_size, graph_num);
     // calc_all_displaced_graph_symQ(n_qubits, qubitstate_size, graph_num);
-    // max_all_lClifford_graphs_distances();
-    max_all_displaced_graphs_distances();
+    max_all_lClifford_graphs_distances();
+    // max_all_displaced_graphs_distances();
     
 
     return 0;

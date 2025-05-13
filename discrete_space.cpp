@@ -175,7 +175,7 @@ Eigen::Tensor<double, 3> get_aSzSx_Pfunc(const unsigned int &n_qubits, const uns
     Eigen::Tensor<double, 3> P(n_qubits + 1, n_qubits + 1, n_qubits + 1);
     P.setZero();
     sym_space_loop(n_qubits, [&](int &m, int &n, int &k) {
-        P(m, n, k) = 3.0 * ((static_cast<double>(n_qubits) - 2.0 * m) * (static_cast<double>(n_qubits) - 2.0 * n) - n_qubits) / qubitstate_size;
+        P(m, n, k) = 3.0 * ((static_cast<double>(n_qubits) - 2.0 * m) * (static_cast<double>(n_qubits) - 2.0 * n) - (static_cast<double>(n_qubits) - 2.0 * k)) / qubitstate_size;
     });
     return P;
 }
@@ -273,15 +273,14 @@ Eigen::Tensor<double, 3> get_Gfunc(const unsigned int &n_qubits, const unsigned 
 void get_Gfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::Tensor<double, 3> &symQ, Eigen::Tensor<double, 3> &Gfunc) {
     double Sx, Sy, Sz;
     Eigen::Matrix3d correlation_matrix = get_correlation_matrix(n_qubits, qubitstate_size, symQ, Sx, Sy, Sz);
+    Eigen::Matrix3d variance_matrix = correlation_matrix.inverse();
     Eigen::Vector3d x_bar = {0.5 - Sx/(2 * sqrt3 * n_qubits), 0.5 - Sy/(2 * sqrt3 * n_qubits), 0.5 - Sz/(2 * sqrt3 * n_qubits)};
     Eigen::Vector3d x;
     double coeff = (1 << (n_qubits + 1)) / ( EIGEN_PI * n_qubits * std::sqrt(EIGEN_PI * n_qubits * correlation_matrix.determinant()) );
     sym_space_loop(n_qubits, [&](int &m, int &n, int &k) {
         x = {static_cast<double>(m)/n_qubits, static_cast<double>(n)/n_qubits, static_cast<double>(k)/n_qubits};
-        Gfunc(m, n, k) = coeff * std::exp(- static_cast<double>(n_qubits) * (x - x_bar).transpose() * correlation_matrix * (x - x_bar) );
+        Gfunc(m, n, k) = coeff * std::exp(- static_cast<double>(n_qubits) * (x - x_bar).transpose() * variance_matrix * (x - x_bar) );
     });
-    // std::cout << Gfunc.sum() << std::endl;
-    std::cout << coeff << std::endl;
 }
 
 // To be implemented
