@@ -39,6 +39,15 @@ Eigen::Tensor<double, 1> get_cartesian_S_Pfunc(const unsigned int &n_qubits, con
 // Returns the P function of Sx^2/S_y^2/S_z^2. They are all equal, with the only difference being which variable is spanned by the single dimension. Notice that on broadcasting only valid triples (m, n, k) should be distinct from zero. If this is used to calculate averages, it is enough if the state sym Q is zero in those places
 Eigen::Tensor<double, 1> get_cartesian_S2_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size);
 
+// Returns the full symmetric P function of Sx
+Eigen::Tensor<double, 3> get_Sx_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size);
+
+// Returns the full symmetric P function of Sy
+Eigen::Tensor<double, 3> get_Sy_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size);
+
+// Returns the full symmetric P function of Sz
+Eigen::Tensor<double, 3> get_Sz_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size);
+
 // Returns the full symmetric P function of {Sy,Sz}
 Eigen::Tensor<double, 3> get_aSySz_Pfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size);
 

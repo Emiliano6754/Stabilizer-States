@@ -107,6 +107,7 @@ void max_displaced_distances(const unsigned int &n_qubits, const unsigned int &q
         }
         // Calculate distance to R
         thread_variables.current_distance = (Rmnk * sym_Qfunc).sqrt().sum();
+        // std::cout << ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) << std::endl;
         if (( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) ) > thread_variables.local_max_R) {
             thread_variables.local_max_R = ( 1.0 - thread_variables.current_distance(0) / static_cast<double>(qubitstate_size) );
             thread_variables.local_max_R_displacement = {mu, nu};
