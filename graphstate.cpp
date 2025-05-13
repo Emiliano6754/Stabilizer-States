@@ -631,7 +631,7 @@ void parse_graph_line(const unsigned int &n_qubits, std::string &line, unsigned 
         comma_pos = line.find(',', last_sc);
         if (next_sc == std::string::npos || next_sc >= line.size()) {
             finished = true;
-            next_sc = line.back();
+            next_sc = line.size();
         }
         first = line.substr(last_sc+1, comma_pos-last_sc-1);
         second = line.substr(comma_pos+1, next_sc-comma_pos-1);
@@ -661,7 +661,7 @@ void for_all_graphs(const unsigned int &n_qubits, LoopFunc operate_graph) {
             graphQ(graph_Qfunc, graph_symQ.setZero(), n_qubits, qubitstate_size, Adj);
             
             operate_graph(graph_Qfunc, graph_symQ, graph_num);
-            
+
             graph_num++;
         }
     } else {
@@ -700,6 +700,7 @@ void max_all_displaced_graphs_distances() {
                 max_R_distances_file << max_R_distance << "\n";
                 max_disp_G_file << std::get<0>(max_G_parameters) << ", " << std::get<1>(max_G_parameters) << "\n";
                 max_disp_R_file << std::get<0>(max_R_parameters) << ", " << std::get<1>(max_R_parameters) << "\n";
+                std::cout << graph_num << std::endl;
             }
         );
         max_G_distances_file.close();
@@ -743,6 +744,7 @@ void max_all_lClifford_graphs_distances() {
                 max_R_distances_file << max_R_distance << "\n";
                 max_lClifford_G_file << std::get<0>(max_G_parameters) << ", " << std::get<1>(max_G_parameters) << ", " << std::get<2>(max_G_parameters) << "\n";
                 max_lClifford_R_file << std::get<0>(max_R_parameters) << ", " << std::get<1>(max_R_parameters) << ", " << std::get<2>(max_R_parameters) << "\n";
+                std::cout << graph_num << std::endl;
             }
         );
         max_G_distances_file.close();
