@@ -2,9 +2,6 @@
 #include<cmath>
 #include<complex>
 
-
-#include<iostream>
-
 static constexpr double sqrt3 = 1.73205080756887;
 static constexpr std::complex<double> xi = std::complex<double>(0.5 * (sqrt3 - 1), 0.5 * (sqrt3 - 1));
 static constexpr std::complex<double> xi_conj = std::complex<double>(0.5 * (sqrt3 - 1), -0.5 * (sqrt3 - 1));
