@@ -80,6 +80,8 @@
                 "-fdiagnostics-color=always",
                 "-I",
                 "C:\\dev\\lib\\eigen",
+                "-I",
+                "C:\\dev\\lib\\boost",
                 "-g",
                 "-std=c++20",
                 "-mpclmul",
@@ -88,6 +90,7 @@
                 "GF2N.cpp",
                 "discrete_space.cpp",
                 "displaced_Qfunc.cpp",
+                "graph_generator.cpp",
                 "-o",
                 "${workspaceFolder}\\main.exe"
             ],

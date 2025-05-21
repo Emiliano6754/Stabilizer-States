@@ -10,7 +10,9 @@
 #include<chrono> // Timing
 #include<Eigen/Dense>
 #include<unsupported/Eigen/CXX11/Tensor>
+#include<sstream>
 #include "displaced_Qfunc.h"
+#include "graph_generator.h"
 
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
@@ -158,6 +160,12 @@ void add_edge(unsigned int* Adj, const unsigned int &size, const std::pair<unsig
     }
 }
 
+void add_edge_list(const unsigned int &n_qubits, const Edge_list &edge_list, unsigned int* Adj) {
+    for (std::pair<unsigned int, unsigned int> edge : edge_list) {
+        add_edge(Adj, n_qubits, edge);
+    }
+}
+
 void add_cyclic_edges(const unsigned int &n_qubits, unsigned int* Adj) {
     for (unsigned int n = 0; n < n_qubits-1; n++) {
         add_edge(Adj,n_qubits,n,n+1);
@@ -221,7 +229,7 @@ void calc_save_graph_symQ(const unsigned int &n_qubits, unsigned int* Adj, const
     Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
     Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
     auto start = std::chrono::high_resolution_clock::now();
-    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    graphQ(Qfunc, sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
     std::cout << "Calculating took " << duration.count() << "s" << std::endl;
@@ -468,7 +476,7 @@ void graphQ_from_file(const unsigned int &n_qubits, const unsigned int &qubitsta
     
     Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
     auto start = std::chrono::high_resolution_clock::now();
-    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    graphQ(Qfunc, sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
     std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
@@ -567,7 +575,7 @@ void manual_minmax_displaced_graph_distance() {
     Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
     
     auto start = std::chrono::high_resolution_clock::now();
-    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    graphQ(Qfunc, sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
     std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
@@ -601,7 +609,7 @@ void manual_minmax_lClifford_graph_distance() {
     Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
     
     auto start = std::chrono::high_resolution_clock::now();
-    graphQ(Qfunc,sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
+    graphQ(Qfunc, sym_Qfunc.setZero(), n_qubits, qubitstate_size, Adj);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
     std::cout << "Calculating Q took " << duration.count() << "s" << std::endl;
@@ -651,7 +659,7 @@ void for_all_graphs(const unsigned int &n_qubits, LoopFunc operate_graph) {
     unsigned int graph_num = 1;
     
     unsigned int qubitstate_size = 1 << n_qubits;
-    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));;
+    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
     Eigen::MatrixXd graph_Qfunc(qubitstate_size, qubitstate_size);
     Eigen::Tensor<double, 3> graph_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
 
@@ -686,10 +694,8 @@ void max_all_displaced_graphs_distances() {
     std::ofstream max_disp_G_file(save_folder + max_disp_G_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
     std::ofstream max_disp_R_file(save_folder + max_disp_R_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
 
-    double max_G_distance;
-    double max_R_distance;
-    std::tuple<unsigned int, unsigned int> max_G_parameters;
-    std::tuple<unsigned int, unsigned int> max_R_parameters;
+    double max_G_distance, max_R_distance;
+    std::tuple<unsigned int, unsigned int> max_G_parameters, max_R_parameters;
     
     if (max_G_distances_file.is_open() && max_R_distances_file.is_open() && max_disp_G_file.is_open() && max_disp_R_file.is_open()) {
         for_all_graphs(
@@ -730,10 +736,8 @@ void max_all_lClifford_graphs_distances() {
     std::ofstream max_lClifford_G_file(save_folder + max_lClifford_G_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
     std::ofstream max_lClifford_R_file(save_folder + max_lClifford_R_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
 
-    double max_G_distance;
-    double max_R_distance;
-    std::tuple<unsigned int, unsigned int, unsigned int> max_G_parameters;
-    std::tuple<unsigned int, unsigned int, unsigned int> max_R_parameters;
+    double max_G_distance, max_R_distance;
+    std::tuple<unsigned int, unsigned int, unsigned int> max_G_parameters, max_R_parameters;
     
     if (max_G_distances_file.is_open() && max_R_distances_file.is_open() && max_lClifford_G_file.is_open() && max_lClifford_R_file.is_open()) {
         for_all_graphs(
@@ -757,13 +761,83 @@ void max_all_lClifford_graphs_distances() {
     }
 }
 
-int main() {    
-    // calc_gen_graph_graph_symQ();
-    // calc_full_displaced_graph_entropy(n_qubits, qubitstate_size, graph_num);
-    // calc_all_displaced_graph_symQ(n_qubits, qubitstate_size, graph_num);
-    max_all_lClifford_graphs_distances();
-    // max_all_displaced_graphs_distances();
+std::vector<unsigned int> ask_integers(const std::string &prompt) {
+    std::vector<unsigned int> numbers;
+    std::string line;
+
+    std::cout << prompt << std::endl;
+    std::cout << "Leave empty or send f to exit" << std::endl;
+
+    if (std::cin.peek() == '\n') {
+        std::cin.ignore();
+    }
+
+    while (true) {
+        std::getline(std::cin, line);
+
+        if (line.empty() || line == "f")
+            break;
+
+        std::istringstream iss(line);
+        unsigned int num;
+        if (iss >> num) {
+            numbers.push_back(num);
+        } else {
+            std::cout << "Invalid input. Please enter an integer, 'f', or an empty line to finish.\n";
+        }
+    }
+
+    return numbers;
+}
+
+void max_random_displaced_graphs_distances() {
+    unsigned int n_qubits, n_graphs;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const unsigned int qubitstate_size = 1 << n_qubits;
+    std::cout << "Enter the number of distintict graphs to be generated" << std::endl;
+    get_unsignedint(n_graphs);
+
+    std::vector<unsigned int> seeds = ask_integers("Enter random engine seeds");
+    std::vector<Edge_list> graphs(n_graphs);
+    set_engine_seed(seeds);
+    generate_random_edge_connected_graph_set(n_qubits, n_graphs, graphs);
+
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string save_folder = cwd.string()+"/data/disp_dist/";
+    std::string max_G_distances_filename = "rand_max_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_R_distances_filename = "rand_max_R_q" + std::to_string(n_qubits) + ".txt";
+    std::ofstream max_G_distances_file(save_folder + max_G_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_R_distances_file(save_folder + max_R_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+
+    double max_G_distance, max_R_distance;
+    std::tuple<unsigned int, unsigned int> max_G_parameters, max_R_parameters;
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    Eigen::MatrixXd graph_Qfunc(qubitstate_size,qubitstate_size);
+    Eigen::Tensor<double,3> graph_symQ(n_qubits+1,n_qubits+1,n_qubits+1);
     
+    unsigned int count = 1;
+    if (max_G_distances_file.is_open() && max_R_distances_file.is_open()) {
+        for (Edge_list edge_list : graphs) {
+            init_Adj(Adj, n_qubits, 0);
+            add_edge_list(n_qubits, edge_list, Adj);
+            graphQ(graph_Qfunc, graph_symQ.setZero(), n_qubits, qubitstate_size, Adj);
+            max_displaced_distances(n_qubits, qubitstate_size, graph_Qfunc, graph_symQ, max_G_distance, max_R_distance, max_G_parameters, max_R_parameters);
+            max_G_distances_file << max_G_distance << "\n";
+            max_R_distances_file << max_R_distance << "\n";
+            std::cout << count << std::endl;
+            count++;
+        }
+        max_G_distances_file.close();
+        max_R_distances_file.close();
+
+    } else {
+        std::cout << "Could not save minmax results" << std::endl;
+    }
+}
+
+int main() {
+    max_random_displaced_graphs_distances();
 
     return 0;
 }

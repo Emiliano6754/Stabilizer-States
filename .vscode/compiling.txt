@@ -1,0 +1,1 @@
+g++ -I "C:\\dev\\lib\\eigen" -I "C:\\dev\\lib\\boost" -O3 -ffast-math -march=native -pthread -fopenmp -std=c++20 -mpclmul -msse2 graphstate.cpp displaced_Qfunc.cpp discrete_space.cpp graph_generator.cpp -o main.exe
