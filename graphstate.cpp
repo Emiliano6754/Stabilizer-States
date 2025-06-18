@@ -11,6 +11,7 @@
 #include<Eigen/Dense>
 #include<unsupported/Eigen/CXX11/Tensor>
 #include<sstream>
+#include "omp.h"
 #include "displaced_Qfunc.h"
 #include "graph_generator.h"
 

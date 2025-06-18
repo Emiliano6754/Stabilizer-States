@@ -4,6 +4,7 @@
 #include<filesystem>
 #include<fstream>
 #include<tuple>
+#include "omp.h"
 #include "discrete_space.h"
 
 template <typename ThreadInitFunc, typename WorkFunc, typename CriticalFunc>
@@ -247,6 +248,7 @@ void calc_full_displaced_maxmin_entropy(const Eigen::MatrixXd &Qfunc, const unsi
     });
 }
 
+// Calculates all displaced symQ functions for the given state and saves them on filepath, each on a file named by the corresponding displacement Z^mu X^nu as mu,nu.txt
 void calc_all_displaced_symQ(const Eigen::MatrixXd &Qfunc, const unsigned int &n_qubits, const unsigned int &qubitstate_size, std::string filepath) {
     struct thread_variables {
     };
