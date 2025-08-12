@@ -251,11 +251,12 @@ Eigen::Matrix3d get_correlation_matrix(const unsigned int &n_qubits, const unsig
     return (Gamma + Lambda) / (6.0 * n_qubits);
 }
 
-// Returns the Gaussian envelope of the state SymQ. NEEDS CORRECTION TO MIMIC THE FUNCTION BELOW
+// Returns the Gaussian envelope of the state SymQ
 Eigen::Tensor<double, 3> get_Gfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::Tensor<double, 3> &symQ) {
     Eigen::Tensor<double, 3> Gfunc(n_qubits + 1, n_qubits + 1, n_qubits + 1);
     double Sx, Sy, Sz;
     Eigen::Matrix3d correlation_matrix = get_correlation_matrix(n_qubits, qubitstate_size, symQ, Sx, Sy, Sz);
+    Eigen::Matrix3d precision_matrix = correlation_matrix.inverse();
     Eigen::Vector3d x_bar = {0.5 - Sx/(2 * sqrt3 * n_qubits), 0.5 - Sy/(2 * sqrt3 * n_qubits), 0.5 - Sz/(2 * sqrt3 * n_qubits)};
     Eigen::Vector3d x;
     double coeff = (1 << (n_qubits + 1)) / ( EIGEN_PI * n_qubits * std::sqrt(EIGEN_PI * n_qubits) * correlation_matrix.determinant() );
@@ -270,13 +271,13 @@ Eigen::Tensor<double, 3> get_Gfunc(const unsigned int &n_qubits, const unsigned 
 void get_Gfunc(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::Tensor<double, 3> &symQ, Eigen::Tensor<double, 3> &Gfunc) {
     double Sx, Sy, Sz;
     Eigen::Matrix3d correlation_matrix = get_correlation_matrix(n_qubits, qubitstate_size, symQ, Sx, Sy, Sz);
-    Eigen::Matrix3d variance_matrix = correlation_matrix.inverse();
+    Eigen::Matrix3d precision_matrix = correlation_matrix.inverse();
     Eigen::Vector3d x_bar = {0.5 - Sx/(2 * sqrt3 * n_qubits), 0.5 - Sy/(2 * sqrt3 * n_qubits), 0.5 - Sz/(2 * sqrt3 * n_qubits)};
     Eigen::Vector3d x;
     double coeff = (1 << (n_qubits + 1)) / ( EIGEN_PI * n_qubits * std::sqrt(EIGEN_PI * n_qubits * correlation_matrix.determinant()) );
     sym_space_loop(n_qubits, [&](int &m, int &n, int &k) {
         x = {static_cast<double>(m)/n_qubits, static_cast<double>(n)/n_qubits, static_cast<double>(k)/n_qubits};
-        Gfunc(m, n, k) = coeff * std::exp(- static_cast<double>(n_qubits) * (x - x_bar).transpose() * variance_matrix * (x - x_bar) );
+        Gfunc(m, n, k) = coeff * std::exp(- static_cast<double>(n_qubits) * (x - x_bar).transpose() * precision_matrix * (x - x_bar) );
     });
 }
 
