@@ -5,7 +5,8 @@
 #include<fstream>
 #include<tuple>
 #include "omp.h"
-#include "discrete_space.h"
+#include<sym_space.h>
+#include<Qfunc.h>
 
 template <typename ThreadInitFunc, typename WorkFunc, typename CriticalFunc>
 static void for_all_displaced_symQ(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::MatrixXd &Qfunc, ThreadInitFunc init_thread_vars, WorkFunc operate_symQ, CriticalFunc critical_func)
@@ -182,6 +183,22 @@ void max_lClifford_distances(const unsigned int &n_qubits, const unsigned int &q
             max_Clifford_R = thread_variables.local_max_R_Clifford;
         }
     });
+}
+
+// Maximizes the Hellinger distance of the Q function of state to its gaussian envelope and the Rmnk distribution, after displacements and Hadamard gates H^gamma Z^mu X^nu (it is assumed that the displacement is applied first). Returns both maximum distances, in the order {distance to G, distance to R}, together with the corresponding parameters of the optimizers in the order {mu, nu, gamma}, in the same order of distance to G then to R. Assumes the entire state has no imaginary parts
+void max_state_lClifford_distances(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::VectorXd &state, double &max_distance_G, double &max_distance_R, std::tuple<unsigned int, unsigned int, unsigned int> &max_Clifford_G, std::tuple<unsigned int, unsigned int, unsigned int> &max_Clifford_R, const std::string &filename) {
+    const Eigen::MatrixXd Qfunc = pure_Qfunc_from_operational(n_qubits, qubitstate_size, state);
+    const Eigen::Tensor<double, 3> symQ = get_symQ(n_qubits, qubitstate_size, Qfunc);
+    save_symQfunc(symQ, filename);
+    max_lClifford_distances(n_qubits, qubitstate_size, Qfunc, symQ, max_distance_G, max_distance_R, max_Clifford_G, max_Clifford_R);
+}
+
+// Maximizes the Hellinger distance of the Q function of state to its gaussian envelope and the Rmnk distribution, after displacements and Hadamard gates H^gamma Z^mu X^nu (it is assumed that the displacement is applied first). Returns both maximum distances, in the order {distance to G, distance to R}, together with the corresponding parameters of the optimizers in the order {mu, nu, gamma}, in the same order of distance to G then to R
+void max_state_lClifford_distances(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const Eigen::VectorXcd &state, double &max_distance_G, double &max_distance_R, std::tuple<unsigned int, unsigned int, unsigned int> &max_Clifford_G, std::tuple<unsigned int, unsigned int, unsigned int> &max_Clifford_R, const std::string &filename) {
+    const Eigen::MatrixXd Qfunc = pure_Qfunc_from_operational(n_qubits, qubitstate_size, state);
+    const Eigen::Tensor<double, 3> symQ = get_symQ(n_qubits, qubitstate_size, Qfunc);
+    save_symQfunc(symQ, filename);
+    max_lClifford_distances(n_qubits, qubitstate_size, Qfunc, symQ, max_distance_G, max_distance_R, max_Clifford_G, max_Clifford_R);
 }
 
 // Calculates the Rényi entropy after all possible displacements for the state given in Qfunc and outputs them in entropies. Both are assumed to already be of size 2^n_qubits x 2^n_qubits. For 15 qubits this requires >16 GB of ram. To circunvent this, the calculated values of entropy must be directly stored in memory
