@@ -5,8 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "C:\\dev\\lib\\eigen",
-                "C:\\dev\\lib\\boost",
-                "C:\\dev\\DiscreteSpace\\include"
+                "C:\\dev\\lib\\boost"
             ],
             "compilerPath": "C:/msys64/ucrt64/bin/gcc.exe",
             "cStandard": "${default}",

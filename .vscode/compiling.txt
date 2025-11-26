@@ -1,1 +1,1 @@
-g++ -I "C:\\dev\\lib\\eigen" -I "C:\\dev\\lib\\boost" -I "C:\\dev\\DiscreteSpace\\include" -O3 -ffast-math -march=native -pthread -fopenmp -std=c++20 -mpclmul -msse2 relevant_states.cpp displaced_Qfunc.cpp -L "C:\\dev\\DiscreteSpace\\build" -ldiscrete_space -o max_interesting_states.exe
+g++ -I "C:\\dev\\lib\\eigen" -I "C:\\dev\\lib\\boost" -O3 -ffast-math -march=native -pthread -fopenmp -std=c++20 -mpclmul -msse2 graphstate.cpp displaced_Qfunc.cpp discrete_space.cpp graph_generator.cpp -o main.exe
