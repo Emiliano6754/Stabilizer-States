@@ -8,15 +8,6 @@
                 "C:\\dev\\lib\\boost",
                 "C:\\dev\\DiscreteSpace\\include"
             ],
-            "browse": {
-                "path": [
-                    "C:/dev/lib/eigen/Eigen",
-                    "C:/dev/lib/eigen/unsupported",
-                    "C:/dev/lib/boost",
-                    "C:/dev/DiscreteSpace/include"
-                ],
-                "limitSymbolsToIncludedHeaders": true
-            },
             "compilerPath": "C:/msys64/ucrt64/bin/gcc.exe",
             "cStandard": "${default}",
             "cppStandard": "${default}",
