@@ -14,6 +14,8 @@
 #include "omp.h"
 #include "displaced_Qfunc.h"
 #include "graph_generator.h"
+#include "sym_space.h"
+#include "Qfunc.h"
 
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
@@ -172,44 +174,6 @@ void add_cyclic_edges(const unsigned int &n_qubits, unsigned int* Adj) {
         add_edge(Adj,n_qubits,n,n+1);
     }
     add_edge(Adj,n_qubits,n_qubits-1,0);
-}
-
-// Prints the Qfunc to console for debugging purposes
-void print_Qfunc(const Eigen::MatrixXd &Qfunc) {
-    const unsigned int n_qubits = 4;
-    const unsigned int qubitstate_size = 1<<n_qubits;
-    for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
-            for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
-                std::cout << "Q(" << alpha << "," << beta << ") = " <<Qfunc(alpha,beta) << std::endl;
-            }
-        }
-}
-
-void save_Qfunc(const Eigen::MatrixXd &Qfunc, const std::string &filename) {
-    const std::filesystem::path cwd = std::filesystem::current_path();
-    std::ofstream output_file(cwd.string()+"/data/Qfuncs/"+filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
-    Eigen::IOFormat FullPrecision(Eigen::FullPrecision,0,"\n");
-    if (output_file.is_open()) {
-        output_file << Qfunc.format(FullPrecision) << std::endl;
-    } else {
-        std::cout << "Could not save Qfunc" << std::endl;
-    }
-}
-
-void save_symQfunc(const Eigen::Tensor<double,3> &Qfunc, const std::string &filename) {
-    const std::filesystem::path cwd = std::filesystem::current_path();
-    std::ofstream output_file(cwd.string()+"/data/symQfuncs/"+filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
-    if (output_file.is_open()) {
-        for (unsigned int i = 0; i < Qfunc.dimension(0); i++) {
-            for (unsigned int j = 0; j < Qfunc.dimension(1); j++) {
-                for (unsigned int k = 0; k < Qfunc.dimension(2); k++) {
-                    output_file << Qfunc(i,j,k) << "\n";
-                }
-            }
-        }
-    } else {
-        std::cout << "Could not save Qfunc" << std::endl;
-    }
 }
 
 // Calculates the symmetric Q function of a given adjacency matrix and saves it to filename. Prints time taken to perform the calculations
@@ -835,6 +799,104 @@ void max_random_displaced_graphs_distances() {
     } else {
         std::cout << "Could not save minmax results" << std::endl;
     }
+}
+
+void field_sym_sums_comparison() {
+    unsigned int n_qubits, n_graphs;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const unsigned int qubitstate_size = 1 << n_qubits;
+
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string save_folder = cwd.string()+"/data/test/";
+    std::string sums_difference_filename = "diff_" + std::to_string(n_qubits) + ".txt";
+    std::ofstream sums_difference_file(save_folder + sums_difference_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+
+    Eigen::Tensor<double, 3> Rmnk = get_Rmnk(n_qubits);
+    // As it will only divide, but it causes problems wherever mnk is not a valid pair, hence Rmnk = 0, set those values to one. This won't matter, as the Q function is null there
+    std::function<double(double)> remove_negatives = [](double x) {
+        return (std::abs(x) < 1e-10) ? 0.0 : x;
+    };
+    std::function<double(double)> zeros_to_one = [](double x) {
+    return (x == 0) ? 1 : x;
+    };
+    Rmnk = Rmnk.unaryExpr(zeros_to_one);
+
+    if (sums_difference_file.is_open()) {
+        if (n_qubits < 9) {
+            for_all_graphs(
+                n_qubits, 
+                [&] (Eigen::MatrixXd &graphQ, Eigen::Tensor<double, 3> &graph_symQ, const unsigned int &graph_num) {
+                    Eigen::Tensor<double, 3> graphG = get_Gfunc(n_qubits, qubitstate_size, graph_symQ);
+                    // GraphQ might be -1e^-17. Could this cause problems anywhere else?
+                    graphG = graphG.unaryExpr(remove_negatives);
+                    graphQ = graphQ.unaryExpr(remove_negatives);
+                    graph_symQ = graph_symQ.unaryExpr(remove_negatives);
+                    Eigen::Tensor<double, 3> graphG_tilde = graphG / Rmnk;
+                    
+                    double field_sum = 0;
+                    double sym_sum = 0;
+                    for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
+                        for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
+                            field_sum += std::sqrt(graphG_tilde(std::popcount(alpha), std::popcount(beta), std::popcount(alpha ^ beta)) * graphQ(alpha, beta));
+                        }
+                    }
+                    Eigen::Tensor<double, 0> sym_sum_result = (graphG * graph_symQ).sqrt().sum();
+                    sym_sum = sym_sum_result(0);
+                    
+                    sums_difference_file << (field_sum) / sym_sum << "\n";
+                }
+            );
+        } else {
+            std::cout << "Enter the number of distintict graphs to be generated" << std::endl;
+            get_unsignedint(n_graphs);
+
+            std::vector<unsigned int> seeds = ask_integers("Enter random engine seeds");
+            std::vector<Edge_list> graphs(n_graphs);
+            set_engine_seed(seeds);
+            generate_random_edge_connected_graph_set(n_qubits, n_graphs, graphs);
+
+            unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+            Eigen::MatrixXd graph_Qfunc(qubitstate_size,qubitstate_size);
+            Eigen::Tensor<double,3> graph_symQ(n_qubits+1,n_qubits+1,n_qubits+1);
+            
+            unsigned int count = 1;
+            for (Edge_list edge_list : graphs) {
+                init_Adj(Adj, n_qubits, 0);
+                add_edge_list(n_qubits, edge_list, Adj);
+                graphQ(graph_Qfunc, graph_symQ.setZero(), n_qubits, qubitstate_size, Adj);
+                Eigen::Tensor<double, 3> graphG = get_Gfunc(n_qubits, qubitstate_size, graph_symQ);
+                graphG = graphG.unaryExpr(remove_negatives);
+                graph_Qfunc = graph_Qfunc.unaryExpr(remove_negatives);
+                graph_symQ = graph_symQ.unaryExpr(remove_negatives);
+                Eigen::Tensor<double, 3> graphG_tilde = graphG / Rmnk;
+                
+                double field_sum = 0;
+                double sym_sum = 0;
+                unsigned int halpha, hbeta, halphabeta;
+                for (unsigned int alpha = 0; alpha < qubitstate_size; alpha++) {
+                    halpha = std::popcount(alpha);
+                    for (unsigned int beta = 0; beta < qubitstate_size; beta++) {
+                        // GraphQ might be -e^-17. Could this cause problems anywhere else?
+                        if (graph_Qfunc(alpha, beta) > 0) {
+                            hbeta = std::popcount(beta);
+                            halphabeta = std::popcount(alpha ^ beta);
+                            field_sum += std::sqrt( graphG_tilde(halpha, hbeta, halphabeta) * graph_Qfunc(alpha, beta));
+                        }
+                    }
+                }
+
+                Eigen::Tensor<double, 0> sym_sum_result = (graphG * graph_symQ).sqrt().sum();
+                sym_sum = sym_sum_result(0);
+                
+                sums_difference_file << (field_sum) / sym_sum << "\n";
+            }
+        }
+    } else {
+        std::cout << "Could not save comparison results" << std::endl;
+    }
+
+
 }
 
 int main() {
