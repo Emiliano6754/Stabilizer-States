@@ -3,8 +3,7 @@
 
 #include<vector>
 #include<utility>
-
-typedef std::vector<std::pair<unsigned int, unsigned int>> Edge_list;
+#include "graph.h"
 
 // Initializes the mersenne twister engine with a non-deterministic random seed. Sets engine_initialized to true
 void initialize_engine();

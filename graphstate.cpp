@@ -16,6 +16,8 @@
 #include "graph_generator.h"
 #include "sym_space.h"
 #include "Qfunc.h"
+#include "graph.h"
+#include "GF2N.h"
 
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
@@ -45,16 +47,6 @@ void generate_xi_buffers(double* norm_buffer, double* sum_buffer, std::complex<d
         sum_buffer[n] = sum_buffer[n-1] * sum_coeff;
         subs_buffer[n] = subs_buffer[n-1] * subs_coeff;
     }
-}
-
-unsigned int get_max_degree(const unsigned int* Adj, const unsigned int &n_qubits) {
-    unsigned int max = 0;
-    for (unsigned int n = 0; n < n_qubits; n++) {
-        if (max < std::popcount(Adj[n])) {
-            max = std::popcount(Adj[n]);
-        }
-    }
-    return max;
 }
 
 void generate_sum_buffers(std::vector<std::complex<double>> &xi_product, std::vector<unsigned int> &adj_sums, const unsigned int &n_qubits, const unsigned int &qubitstate_size, const std::complex<double> &xi, const unsigned int* Adj) {
@@ -129,51 +121,6 @@ void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qu
             }
         }
     }
-}
-
-// Initializes adjacency matrix, def controls whether all edges are connected or disconnected, with disconnected as default. def should only be 0 or 1, undefined behavior otherwise
-void init_Adj(unsigned int* Adj, const unsigned int &size, const unsigned int def=0) {
-    if (size > 8*sizeof(unsigned int)) {
-        std::cout << "Too many qubits, change unsigned int in adjacency matrices to use more" << std::endl;
-    } else {
-        unsigned int connection = def * ((1 << size) - 1);
-        for (unsigned int i = 0; i < size; i++) {
-            Adj[i] = connection ^ (def << i);
-        }
-    }
-}
-
-// Adds (or removes if already present) edge (a,b) from the adjacency matrix. Edges (a,a) can't be added by this function, which is wanted behavior as we only allow simple graphs
-void add_edge(unsigned int* Adj, const unsigned int &size, const unsigned int &a, const unsigned int &b) {
-    if (size < a+1 || size < b+1) {
-        std::cout << "Edges outside bounds" << std::endl;
-    } else {
-        Adj[a] = Adj[a] ^ (1 << b);
-        Adj[b] = Adj[b] ^ (1 << a);
-    }
-}
-
-// Adds (or removes if already present) edge (a,b) from the adjacency matrix. Edges (a,a) can't be added by this function, which is wanted behavior as we only allow simple graphs
-void add_edge(unsigned int* Adj, const unsigned int &size, const std::pair<unsigned int, unsigned int> &edge) {
-    if (size < edge.first+1 || size < edge.second+1) {
-        std::cout << "Edges outside bounds" << std::endl;
-    } else {
-        Adj[edge.first] = Adj[edge.first] ^ (1 << edge.second);
-        Adj[edge.second] = Adj[edge.second] ^ (1 << edge.first);
-    }
-}
-
-void add_edge_list(const unsigned int &n_qubits, const Edge_list &edge_list, unsigned int* Adj) {
-    for (std::pair<unsigned int, unsigned int> edge : edge_list) {
-        add_edge(Adj, n_qubits, edge);
-    }
-}
-
-void add_cyclic_edges(const unsigned int &n_qubits, unsigned int* Adj) {
-    for (unsigned int n = 0; n < n_qubits-1; n++) {
-        add_edge(Adj,n_qubits,n,n+1);
-    }
-    add_edge(Adj,n_qubits,n_qubits-1,0);
 }
 
 // Calculates the symmetric Q function of a given adjacency matrix and saves it to filename. Prints time taken to perform the calculations
@@ -343,36 +290,6 @@ void get_unsignedint(unsigned int &parsed_input) {
     }
 }
 
-void parse_manual_graph(const unsigned int &n_qubits, unsigned int* Adj, std::string &filename) {
-    init_Adj(Adj, n_qubits, 0);
-    unsigned int q1, q2;
-    bool finished = false;
-    std::string input;
-    while (!finished) {
-        std::cout << "Enter a qubit connection" << std::endl;
-        get_unsignedint(q1);
-        get_unsignedint(q2);
-        if (q1 < n_qubits || q2 < n_qubits) {
-            add_edge(Adj, n_qubits, q1, q2);
-            std::cout << "Enter n to exit" << std::endl;
-            std::getline(std::cin, input);
-            if (std::cin.peek() != '\n') {
-                std::cin >> input;
-                if (input == "n") {
-                    break;
-                }
-            }
-            
-        } else {
-            std::cout << "Connection outside bounds" << std::endl;
-        }
-    }
-    std::cout << "Enter the file prefix" << std::endl;
-    input = "";
-    std::cin >> input;
-    filename = input+"_q" + std::to_string(n_qubits)+".txt";
-}
-
 void calc_manual_graph() {
     unsigned int n_qubits = 0;
     std::cout << "Enter the number of qubits" << std::endl;
@@ -395,45 +312,6 @@ void calc_gen_graph_graph_symQ() {
     std::cout << "Enter the number of qubits" << std::endl;
     get_unsignedint(N);
     sel_calc_state_graph_symQ(N);
-}
-
-// Parses the graph_num graph (as numerated in the graph list) with n unlabeled nodes as the adjacency matrix in Adj from the edge list'. Assumes the file is named as n_qubits.txt
-void parse_graph_from_edge_list(const unsigned int &n_qubits, const unsigned int &graph_num, unsigned int* Adj) {
-    const std::filesystem::path cwd = std::filesystem::current_path();
-    std::string filename = std::to_string(n_qubits) + ".txt";
-    std::ifstream input_file(cwd.string()+"/data/graphs/"+filename,std::ifstream::in);
-    std::string line, first, second;
-    // unsigned int start = 0;
-    unsigned int pos = 1;
-    unsigned int next_sc = 0;
-    unsigned int comma_pos = 0;
-    unsigned int last_sc = 0;
-    bool finished = false;
-
-    if (input_file.is_open()) {
-        while (std::getline(input_file, line)) {
-            if (pos == graph_num) {
-                last_sc = line.find(':');
-                while(!finished) {
-                    next_sc = line.find(';', last_sc+1);
-                    comma_pos = line.find(',', last_sc);
-                    if (next_sc == std::string::npos || next_sc >= line.size()) {
-                        finished = true;
-                        next_sc = line.back();
-                    }
-                    first = line.substr(last_sc+1, comma_pos-last_sc-1);
-                    second = line.substr(comma_pos+1, next_sc-comma_pos-1);
-                    add_edge(Adj, n_qubits, std::stoul(first) - 1, std::stoul(second) - 1);
-                    
-                    last_sc = next_sc;
-                }
-                break;
-            }
-            pos++;
-        }
-    } else {
-        std::cout << "Could not parse graph" << std::endl;
-    }
 }
 
 void graphQ_from_file(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int &graph_num, unsigned int* Adj, Eigen::MatrixXd &Qfunc) {
@@ -466,13 +344,6 @@ void calc_full_displaced_graph_entropy(const unsigned int &n_qubits, const unsig
     save_Qfunc(entropies, filename);
 }
 
-void ask_manual_graph_params(unsigned int &n_qubits, unsigned int &graph_num) {
-    std::cout << "Enter the number of qubits" << std::endl;
-    get_unsignedint(n_qubits);
-    std::cout << "Enter the graph number" << std::endl;
-    get_unsignedint(graph_num);
-}
-
 void calc_all_displaced_graph_symQ(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int &graph_num) {
     unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
     Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
@@ -481,45 +352,6 @@ void calc_all_displaced_graph_symQ(const unsigned int &n_qubits, const unsigned 
     graphQ_from_file(n_qubits, qubitstate_size, graph_num, Adj, Qfunc);
 
     calc_all_displaced_symQ(Qfunc, n_qubits, qubitstate_size, filepath);
-}
-
-// Prompts for a type of graph, the number of qubits and returns its adjacency matrix and filename
-void generate_selected_graph(unsigned int &n_qubits, unsigned int *Adj, std::string &filename) {
-    bool selected = false;
-    while (!selected) {
-        std::cout << "Select the graph type [m(aximmally connected),c(yclically connected),a(cyclically connected),d(isconnected),g(raph num),e(dge list)]" << std::endl;
-        std::string input;
-        std::cin >> input;
-        if (input == "mc" || input == "m") {
-            init_Adj(Adj, n_qubits, 1);
-            filename = "mc_q" + std::to_string(n_qubits)+".txt";
-            selected = true;
-        } else if (input == "cc" || input == "c") {
-            init_Adj(Adj, n_qubits, 0);
-            add_cyclic_edges(n_qubits, Adj);
-            filename = "cc_q" + std::to_string(n_qubits)+".txt";
-            selected = true;
-        } else if (input == "ac" || input == "a") {
-            init_Adj(Adj, n_qubits, 1);
-            add_cyclic_edges(n_qubits, Adj);
-            filename = "ac_q" + std::to_string(n_qubits)+".txt";
-            selected = true;
-        } else if (input == "dc" || input == "d") {
-            init_Adj(Adj, n_qubits, 0);
-            filename = "dc_q" + std::to_string(n_qubits)+".txt";
-            selected = true;
-        } else if (input == "gn" || input == "g") {
-            unsigned int graph_num = 0;
-            std::cout << "Enter the graph number" << std::endl;
-            get_unsignedint(graph_num);
-            filename = "q" + std::to_string(n_qubits) + "_" + std::to_string(graph_num) + ".txt";
-            parse_graph_from_edge_list(n_qubits, graph_num, Adj);
-            selected = true;
-        } else if (input == "ed" || input == "e") {
-            parse_manual_graph(n_qubits, Adj, filename);
-            selected = true;
-        }
-    }
 }
 
 void manual_minmax_displaced_graph_distance() {
@@ -588,58 +420,6 @@ void manual_minmax_lClifford_graph_distance() {
     std::cout << "Min distance: " << min_distance << std::endl;
     std::cout << "Max displacement: " << std::get<0>(max_displacement) << ", " << std::get<1>(max_displacement) << std::endl;
     std::cout << "Min displacement: " << std::get<0>(min_displacement) << ", " << std::get<1>(min_displacement) << std::endl;
-}
-
-void parse_graph_line(const unsigned int &n_qubits, std::string &line, unsigned int* Adj) {
-    std::string first, second;
-    bool finished = false;
-    unsigned int next_sc = 0;
-    unsigned int comma_pos = 0;
-    unsigned int last_sc = 0;
-
-    init_Adj(Adj, n_qubits, 0);
-    last_sc = line.find(':');
-    while(!finished) {
-        next_sc = line.find(';', last_sc+1);
-        comma_pos = line.find(',', last_sc);
-        if (next_sc == std::string::npos || next_sc >= line.size()) {
-            finished = true;
-            next_sc = line.size();
-        }
-        first = line.substr(last_sc+1, comma_pos-last_sc-1);
-        second = line.substr(comma_pos+1, next_sc-comma_pos-1);
-        add_edge(Adj, n_qubits, std::stoul(first) - 1, std::stoul(second) - 1);
-        
-        last_sc = next_sc;
-    }
-}
-
-// Loops over all graphs with n_qubits, calculating both their Q and symmetrized Q functions and executes a particular function acting on them and the graph number
-template<typename LoopFunc> 
-void for_all_graphs(const unsigned int &n_qubits, LoopFunc operate_graph) {
-    const std::filesystem::path cwd = std::filesystem::current_path();
-    std::string graphs_suffix = std::to_string(n_qubits) + ".txt";
-    std::ifstream input_file(cwd.string()+"/data/graphs/"+graphs_suffix,std::ifstream::in);
-    std::string line;
-    unsigned int graph_num = 1;
-    
-    unsigned int qubitstate_size = 1 << n_qubits;
-    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
-    Eigen::MatrixXd graph_Qfunc(qubitstate_size, qubitstate_size);
-    Eigen::Tensor<double, 3> graph_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
-
-    if (input_file.is_open()) {
-        while (std::getline(input_file, line)) {
-            parse_graph_line(n_qubits, line, Adj);
-            graphQ(graph_Qfunc, graph_symQ.setZero(), n_qubits, qubitstate_size, Adj);
-            
-            operate_graph(graph_Qfunc, graph_symQ, graph_num);
-
-            graph_num++;
-        }
-    } else {
-        std::cout << "Could not parse graphs" << std::endl;
-    }
 }
 
 void max_all_displaced_graphs_distances() {
