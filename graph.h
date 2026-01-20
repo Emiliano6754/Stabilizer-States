@@ -40,8 +40,4 @@ void ask_manual_graph_params(unsigned int &n_qubits, unsigned int &graph_num);
 // Prompts for a type of graph, the number of qubits and returns its adjacency matrix and a suffix for filenames to indicate its type
 void generate_selected_graph(unsigned int &n_qubits, unsigned int *Adj, std::string &filename);
 
-// Loops over all graphs with n_qubits, calculating both their Q and symmetrized Q functions and executes a particular function acting on them and the graph number
-template<typename LoopFunc> 
-void for_all_graphs(const unsigned int &n_qubits, LoopFunc operate_graph);
-
 #endif

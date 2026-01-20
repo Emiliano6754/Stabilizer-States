@@ -3,8 +3,9 @@
 #include<iostream>
 #include<fstream>
 #include<filesystem>
+#include<Eigen/Dense>
 
-void get_unsignedint(unsigned int &parsed_input) {
+static void get_unsignedint(unsigned int &parsed_input) {
     std::string input = "";
     std::cin >> input;
     try {
@@ -21,7 +22,7 @@ void get_unsignedint(unsigned int &parsed_input) {
 }
 
 // Initializes adjacency matrix with n_vertices vertices, def controls whether all edges are connected or disconnected, with disconnected as default. def should only be 0 or 1, undefined behavior otherwise
-void init_Adj(unsigned int* Adj, const unsigned int &n_vertices, const unsigned int def=0) {
+void init_Adj(unsigned int* Adj, const unsigned int &n_vertices, const unsigned int def) {
     if (n_vertices > 8*sizeof(unsigned int)) {
         std::cout << "Too many qubits, change unsigned int in adjacency matrices to use more" << std::endl;
     } else {
@@ -201,32 +202,3 @@ void generate_selected_graph(unsigned int &n_qubits, unsigned int *Adj, std::str
         }
     }
 }
-
-// Loops over all graphs with n_qubits, calculating both their Q and symmetrized Q functions and executes a particular function acting on them and the graph number
-template<typename LoopFunc> 
-void for_all_graphs(const unsigned int &n_qubits, LoopFunc operate_graph) {
-    const std::filesystem::path cwd = std::filesystem::current_path();
-    std::string graphs_suffix = std::to_string(n_qubits) + ".txt";
-    std::ifstream input_file(cwd.string()+"/data/graphs/"+graphs_suffix,std::ifstream::in);
-    std::string line;
-    unsigned int graph_num = 1;
-    
-    unsigned int qubitstate_size = 1 << n_qubits;
-    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
-    Eigen::MatrixXd graph_Qfunc(qubitstate_size, qubitstate_size);
-    Eigen::Tensor<double, 3> graph_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
-
-    if (input_file.is_open()) {
-        while (std::getline(input_file, line)) {
-            parse_graph_line(n_qubits, line, Adj);
-            graphQ(graph_Qfunc, graph_symQ.setZero(), n_qubits, qubitstate_size, Adj);
-            
-            operate_graph(graph_Qfunc, graph_symQ, graph_num);
-
-            graph_num++;
-        }
-    } else {
-        std::cout << "Could not parse graphs" << std::endl;
-    }
-}
-
