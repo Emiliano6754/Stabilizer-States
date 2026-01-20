@@ -152,7 +152,7 @@ void calc_save_graph_symQ(const unsigned int &n_qubits, unsigned int* Adj, const
 // Calculates the symmetric Q function of a maximally connected graph state with removed cyclic edges
 void generate_acyclic_symQ(const unsigned int &n_qubits) {
     const std::string filename = "ac_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     init_Adj(Adj,n_qubits,1);
     add_cyclic_edges(n_qubits,Adj);
     calc_save_symQ(n_qubits,Adj,filename);
@@ -161,7 +161,7 @@ void generate_acyclic_symQ(const unsigned int &n_qubits) {
 // Calculates the symmetric Q function of a cyclically connected graph state
 void generate_cyclic_symQ(const unsigned int &n_qubits) {
     const std::string filename = "cc_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     init_Adj(Adj,n_qubits,0);
     add_cyclic_edges(n_qubits,Adj);
     calc_save_symQ(n_qubits,Adj,filename);
@@ -170,14 +170,14 @@ void generate_cyclic_symQ(const unsigned int &n_qubits) {
 // Calculates the symmetric Q function of a maximally connected graph state
 void generate_maxcon_symQ(const unsigned int &n_qubits) {
     const std::string filename = "mc_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     init_Adj(Adj,n_qubits,1);
     calc_save_symQ(n_qubits,Adj,filename);
 }
 
 void generate_discon_symQ(const unsigned int &n_qubits) {
     const std::string filename = "dc_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     init_Adj(Adj,n_qubits,0);
     calc_save_symQ(n_qubits,Adj,filename);
 }
@@ -185,7 +185,7 @@ void generate_discon_symQ(const unsigned int &n_qubits) {
 // Calculates the Q function of a maximally connected graph state with removed cyclic edges
 void generate_acyclic_graphQ(const unsigned int &n_qubits) {
     const std::string filename = "ac_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     init_Adj(Adj,n_qubits,1);
     add_cyclic_edges(n_qubits,Adj);
     calc_save_graph_symQ(n_qubits,Adj,filename);
@@ -194,7 +194,7 @@ void generate_acyclic_graphQ(const unsigned int &n_qubits) {
 // Calculates the Q function of a cyclically connected graph state
 void generate_cyclic_graphQ(const unsigned int &n_qubits) {
     const std::string filename = "cc_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     init_Adj(Adj,n_qubits,0);
     add_cyclic_edges(n_qubits,Adj);
     calc_save_graph_symQ(n_qubits,Adj,filename);
@@ -203,14 +203,14 @@ void generate_cyclic_graphQ(const unsigned int &n_qubits) {
 // Calculates the Q function of a maximally connected graph state
 void generate_maxcon_graphQ(const unsigned int &n_qubits) {
     const std::string filename = "mc_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     init_Adj(Adj,n_qubits,1);
     calc_save_graph_symQ(n_qubits,Adj,filename);
 }
 
 void generate_discon_graphQ(const unsigned int &n_qubits) {
     const std::string filename = "dc_q" + std::to_string(n_qubits)+".txt";
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     init_Adj(Adj,n_qubits,0);
     calc_save_graph_symQ(n_qubits,Adj,filename);
 }
@@ -274,7 +274,7 @@ void sel_calc_state_graph_symQ(const unsigned int &n_qubits) {
     }
 }
 
-void get_unsignedint(unsigned int &parsed_input) {
+static void get_unsignedint(unsigned int &parsed_input) {
     std::string input = "";
     std::cin >> input;
     try {
@@ -327,7 +327,7 @@ void graphQ_from_file(const unsigned int &n_qubits, const unsigned int &qubitsta
 
 // Calculates the full displaced entropies of a particular graph state, specified by the number of qubits and graph_num
 void calc_full_displaced_graph_entropy(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int &graph_num) {
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
     std::string filename = "entropies/" + std::to_string(n_qubits) + "q_" + std::to_string(graph_num) + ".txt"; // Use folder inside Qfuncs as this is secondary
     
@@ -345,7 +345,7 @@ void calc_full_displaced_graph_entropy(const unsigned int &n_qubits, const unsig
 }
 
 void calc_all_displaced_graph_symQ(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const unsigned int &graph_num) {
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     Eigen::MatrixXd Qfunc(qubitstate_size,qubitstate_size);
     std::string filepath = std::to_string(n_qubits) + "q_" + std::to_string(graph_num);
 
@@ -359,7 +359,7 @@ void manual_minmax_displaced_graph_distance() {
     std::cout << "Enter the number of qubits" << std::endl;
     get_unsignedint(n_qubits);
     const unsigned int qubitstate_size = 1 << n_qubits;
-    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));;
+    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));;
     std::string filename = "";
     generate_selected_graph(n_qubits, Adj, filename);
 
@@ -393,7 +393,7 @@ void manual_minmax_lClifford_graph_distance() {
     std::cout << "Enter the number of qubits" << std::endl;
     get_unsignedint(n_qubits);
     const unsigned int qubitstate_size = 1 << n_qubits;
-    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));;
+    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));;
     std::string filename = "";
     generate_selected_graph(n_qubits, Adj, filename);
 
@@ -422,6 +422,35 @@ void manual_minmax_lClifford_graph_distance() {
     std::cout << "Min displacement: " << std::get<0>(min_displacement) << ", " << std::get<1>(min_displacement) << std::endl;
 }
 
+// Loops over all graphs with n_qubits, calculating both their Q and symmetrized Q functions and executes a particular function acting on them and the graph number
+template<typename LoopFunc> 
+void for_all_graphs_Qfuncs(const unsigned int &n_qubits, LoopFunc operate_graph) {
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string graphs_suffix = std::to_string(n_qubits) + ".txt";
+    std::ifstream input_file(cwd.string()+"/data/graphs/"+graphs_suffix,std::ifstream::in);
+    std::string line;
+    unsigned int graph_num = 1;
+    
+    unsigned int qubitstate_size = 1 << n_qubits;
+    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
+    Eigen::MatrixXd graph_Qfunc(qubitstate_size, qubitstate_size);
+    Eigen::Tensor<double, 3> graph_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+
+    if (input_file.is_open()) {
+        while (std::getline(input_file, line)) {
+            parse_graph_line(n_qubits, line, Adj);
+            graphQ(graph_Qfunc, graph_symQ.setZero(), n_qubits, qubitstate_size, Adj);
+            
+            operate_graph(graph_Qfunc, graph_symQ, graph_num);
+
+            graph_num++;
+        }
+    } else {
+        std::cout << "Could not parse graphs" << std::endl;
+    }
+}
+
+
 void max_all_displaced_graphs_distances() {
     unsigned int n_qubits;
     std::cout << "Enter the number of qubits" << std::endl;
@@ -443,7 +472,7 @@ void max_all_displaced_graphs_distances() {
     std::tuple<unsigned int, unsigned int> max_G_parameters, max_R_parameters;
     
     if (max_G_distances_file.is_open() && max_R_distances_file.is_open() && max_disp_G_file.is_open() && max_disp_R_file.is_open()) {
-        for_all_graphs(
+        for_all_graphs_Qfuncs(
             n_qubits,
             [&](const Eigen::MatrixXd &graph_Qfunc, const Eigen::Tensor<double, 3> &graph_symQ, const unsigned int &graph_num) {
                 max_displaced_distances(n_qubits, qubitstate_size, graph_Qfunc, graph_symQ, max_G_distance, max_R_distance, max_G_parameters, max_R_parameters);
@@ -485,7 +514,7 @@ void max_all_lClifford_graphs_distances() {
     std::tuple<unsigned int, unsigned int, unsigned int> max_G_parameters, max_R_parameters;
     
     if (max_G_distances_file.is_open() && max_R_distances_file.is_open() && max_lClifford_G_file.is_open() && max_lClifford_R_file.is_open()) {
-        for_all_graphs(
+        for_all_graphs_Qfuncs(
             n_qubits,
             [&](const Eigen::MatrixXd &graph_Qfunc, const Eigen::Tensor<double, 3> &graph_symQ, const unsigned int &graph_num) {
                 max_lClifford_distances(n_qubits, qubitstate_size, graph_Qfunc, graph_symQ, max_G_distance, max_R_distance, max_G_parameters, max_R_parameters);
@@ -557,7 +586,7 @@ void max_random_displaced_graphs_distances() {
 
     double max_G_distance, max_R_distance;
     std::tuple<unsigned int, unsigned int> max_G_parameters, max_R_parameters;
-    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
     Eigen::MatrixXd graph_Qfunc(qubitstate_size,qubitstate_size);
     Eigen::Tensor<double,3> graph_symQ(n_qubits+1,n_qubits+1,n_qubits+1);
     
@@ -604,7 +633,7 @@ void field_sym_sums_comparison() {
 
     if (sums_difference_file.is_open()) {
         if (n_qubits < 9) {
-            for_all_graphs(
+            for_all_graphs_Qfuncs(
                 n_qubits, 
                 [&] (Eigen::MatrixXd &graphQ, Eigen::Tensor<double, 3> &graph_symQ, const unsigned int &graph_num) {
                     Eigen::Tensor<double, 3> graphG = get_Gfunc(n_qubits, qubitstate_size, graph_symQ);
@@ -636,7 +665,7 @@ void field_sym_sums_comparison() {
             set_engine_seed(seeds);
             generate_random_edge_connected_graph_set(n_qubits, n_graphs, graphs);
 
-            unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * n_qubits * sizeof(unsigned int)));
+            unsigned int* Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
             Eigen::MatrixXd graph_Qfunc(qubitstate_size,qubitstate_size);
             Eigen::Tensor<double,3> graph_symQ(n_qubits+1,n_qubits+1,n_qubits+1);
             
@@ -691,8 +720,8 @@ int exp_val_Sx_r(const unsigned int &n_qubits, const unsigned int &r, unsigned i
     [&] (unsigned int const* const j_vector) {
         adj_sums = eta = pairs = 0;
         for (int l = 0; l < r; l++) {
-            adj_sums ^= Adj[j_vector[l]]; // Sum of the j_vector rows of Adj
-            eta ^= 1 << j_vector[l]; // Sum of the j_vector basis vectors
+            adj_sums ^= Adj[j_vector[l] - 1]; // Sum of the j_vector rows of Adj (j starts at 1, but the first element in Adj is 0)
+            eta ^= 1 << (j_vector[l] - 1); // Sum of the j_vector basis vectors (j starts at 1, but the first basis vector should be 0x1)
         }
         if (adj_sums == 0) {
             pairs = 0;
@@ -708,8 +737,56 @@ int exp_val_Sx_r(const unsigned int &n_qubits, const unsigned int &r, unsigned i
     return exp_val;
 }
 
+// Loops over all graphs with n_qubits, calculating their adjacency matrix and executes a particular function acting on it and the graph number
+template<typename LoopFunc> 
+void for_all_graphs_Adj(const unsigned int &n_qubits, LoopFunc operate_graph) {
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string graphs_suffix = std::to_string(n_qubits) + ".txt";
+    std::ifstream input_file(cwd.string()+"/data/graphs/"+graphs_suffix,std::ifstream::in);
+    std::string line;
+    unsigned int graph_num = 1;
+    
+    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
+
+    if (input_file.is_open()) {
+        while (std::getline(input_file, line)) {
+            parse_graph_line(n_qubits, line, Adj);
+            
+            operate_graph(Adj, graph_num);
+
+            graph_num++;
+        }
+    } else {
+        std::cout << "Could not parse graphs" << std::endl;
+    }
+}
+
+// Calculates the exact expected values of Sx^r for r = 1, ..., 4 for all graph states with a prompted number of qubits and saves them in the same order as the database
+void classify_graphs() {
+    unsigned int n_qubits;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::ofstream save_file(cwd.string()+"/data/graphs/Sx_exp_q"+std::to_string(n_qubits)+".txt",std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+
+    if (save_file.is_open()) {
+        for_all_graphs_Adj(n_qubits, 
+        [&] (unsigned int* const Adj, const unsigned int &graph_num) {
+            for (int j = 1; j <= 4; j++) {
+                save_file << exp_val_Sx_r(n_qubits, j, Adj) << ", ";
+            }
+            save_file << "\n";
+            std::cout << graph_num << "\n";
+        }
+        );
+    } else {
+        std::cout << "Could not save expected values" << std::endl;
+    }
+}
+
 int main() {
-    max_random_displaced_graphs_distances();
+    classify_graphs();
+    
 
     return 0;
 }
