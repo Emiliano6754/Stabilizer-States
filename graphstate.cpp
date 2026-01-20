@@ -679,6 +679,35 @@ void field_sym_sums_comparison() {
 
 }
 
+inline unsigned int get_jth_bit(const unsigned int &number, const unsigned int &j) {
+    return (number >> j) & 1;
+}
+
+// Returns the expected value of Sx^r for a graph state given by its adjacency matrix Adj
+int exp_val_Sx_r(const unsigned int &n_qubits, const unsigned int &r, unsigned int const* const Adj) {
+    int exp_val = 0;
+    unsigned int adj_sums = 0, eta = 0, pairs = 0;
+    nested_basis_loop(n_qubits, r, 
+    [&] (unsigned int const* const j_vector) {
+        adj_sums = eta = pairs = 0;
+        for (int l = 0; l < r; l++) {
+            adj_sums ^= Adj[j_vector[l]]; // Sum of the j_vector rows of Adj
+            eta ^= 1 << j_vector[l]; // Sum of the j_vector basis vectors
+        }
+        if (adj_sums == 0) {
+            pairs = 0;
+            for (int m = 1; m <= n_qubits; m++) {
+                for (int k = 1; k <= m; k++) {
+                    pairs += get_jth_bit(Adj[m], k) * get_jth_bit(eta, m) * get_jth_bit(eta, k);
+                }
+            }
+            exp_val += 1 - 2 * (pairs % 2);
+        }
+    }
+    );
+    return exp_val;
+}
+
 int main() {
     max_random_displaced_graphs_distances();
 
