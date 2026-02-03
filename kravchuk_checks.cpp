@@ -68,9 +68,9 @@ void check_Rmnk() {
     Eigen::array<Eigen::Index, 3> dimensions;
     Eigen::Tensor<double, 1> binoms(max_n), binoms2(max_n);
     double norm_fact = 1;
-    Eigen::Tensor<double, 0> squared_difference;
+    Eigen::Tensor<double, 0> sqrt_distance;
     for (int n_qubits = 1; n_qubits <= max_n; n_qubits++) {
-        exact_Rmnk = get_Rmnk(n_qubits);
+        exact_Rmnk = std::pow(1.0 / (1 << n_qubits), 2) * get_Rmnk(n_qubits);
         dimensions = Eigen::array<Eigen::Index, 3>{n_qubits + 1, n_qubits + 1, n_qubits + 1};
         Kravchuk_Rmnk.resize(dimensions);
         Kravchuk_Rmnk.setZero();
@@ -78,7 +78,8 @@ void check_Rmnk() {
             std::vector<polynomial> Kravchuks = get_Kravchuk_pols(n_qubits, n_qubits);
             binoms = binom(n_qubits);
             binoms2 = binom2(n_qubits);
-            norm_fact = 1.0 / (1 << n_qubits);
+            // Normalize both Kravchuks to 1, for Hellinger distance
+            norm_fact = std::pow(1.0 / (1 << n_qubits), 3);
             sym_space_loop(n_qubits, 
             [&] (int const &m, int const &n, int const &k) {
                     for (int l = 0; l <= n_qubits; l++) {
@@ -87,8 +88,8 @@ void check_Rmnk() {
                         Kravchuk_Rmnk(m, n, k) *= norm_fact * binoms[m] * binoms[n] * binoms[k];
                     }
                 );
-            squared_difference = (exact_Rmnk - Kravchuk_Rmnk).square().sum();
-            std::cout << "N = " << n_qubits << ". Diff = " << squared_difference(0) << std::endl;
+            sqrt_distance = (exact_Rmnk * Kravchuk_Rmnk).sqrt().sum();
+            std::cout << "N = " << n_qubits << ". Diff = " << 1 - sqrt_distance(0) << std::endl;
         }
     }
 }
