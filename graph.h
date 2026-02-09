@@ -4,6 +4,7 @@
 #include<vector>
 #include<string>
 #include<utility> // std::pair
+#include<unsupported/Eigen/CXX11/Tensor>
 
 typedef std::vector<std::pair<unsigned int, unsigned int>> Edge_list;
 
@@ -39,5 +40,8 @@ void ask_manual_graph_params(unsigned int &n_qubits, unsigned int &graph_num);
 
 // Prompts for a type of graph, the number of qubits and returns its adjacency matrix and a suffix for filenames to indicate its type
 void generate_selected_graph(unsigned int &n_qubits, unsigned int *Adj, std::string &filename);
+
+// Returns the graph characteristic function C_A of Adj
+Eigen::Tensor<int, 3> graph_characteristic(unsigned int const &n_qubits, unsigned int const &qubitstate_size, unsigned int *Adj);
 
 #endif

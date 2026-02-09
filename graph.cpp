@@ -3,7 +3,6 @@
 #include<iostream>
 #include<fstream>
 #include<filesystem>
-#include<Eigen/Dense>
 
 static void get_unsignedint(unsigned int &parsed_input) {
     std::string input = "";
@@ -201,4 +200,25 @@ void generate_selected_graph(unsigned int &n_qubits, unsigned int *Adj, std::str
             selected = true;
         }
     }
+}
+
+// Returns Adj * eta, where Adj is treated as a matrix and eta a vector, in GF(2^N). Assumes Adj is symmetric, so that no transpose is needed
+static unsigned int adj_mult(unsigned int const &n_qubits, unsigned int *Adj, unsigned int const &eta) {
+    unsigned int res = 0;
+    for (unsigned int j = 0; j < n_qubits; j++) {
+        res ^= Adj[j] * ((eta >> j) & 1);
+    }
+    return res;
+}
+
+// Returns the graph characteristic function C_A of Adj
+Eigen::Tensor<int, 3> graph_characteristic(unsigned int const &n_qubits, unsigned int const &qubitstate_size, unsigned int *Adj) {
+    Eigen::Tensor<int, 3> C_A(n_qubits+1, n_qubits+1, n_qubits+1);
+    C_A.setZero();
+    unsigned int mult = 0;
+    for (unsigned int eta = 0; eta < qubitstate_size; eta++) {
+        mult = adj_mult(n_qubits, Adj, eta);
+        C_A(std::popcount(eta), std::popcount(mult), std::popcount(mult^eta)) += 1;
+    }
+    return C_A;
 }
