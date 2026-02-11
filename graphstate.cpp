@@ -11,6 +11,7 @@
 #include<Eigen/Dense>
 #include<unsupported/Eigen/CXX11/Tensor>
 #include<sstream>
+#include<memory>
 #include "omp.h"
 #include "displaced_Qfunc.h"
 #include "graph_generator.h"
@@ -18,6 +19,8 @@
 #include "Qfunc.h"
 #include "graph.h"
 #include "GF2N.h"
+
+#define SQRT3 1.73205080756
 
 // Calculates the field-wise trace of alpha by calculating its hamming weight and returning the last bit (modulo 2)
 inline int trace(const unsigned int &alpha) {
@@ -121,6 +124,31 @@ void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qu
             }
         }
     }
+}
+
+// Generates a buffer of all powers of 1/sqrt(3) from 0 to n_qubits
+std::unique_ptr<double[]> generate_sqrt3_buffer(unsigned int const &n_qubits) {
+    std::unique_ptr<double[]> sqrt3_buffer = std::make_unique<double[]>(n_qubits + 1);
+    double sqrt3_power = 1;
+    for (int j = 0; j <= n_qubits; j++) {
+        sqrt3_buffer[j] = sqrt3_power;
+        sqrt3_power /= SQRT3;
+    }
+    return std::move(sqrt3_buffer);
+}
+
+// Returns the symmetric Q function of Adj from its characteristic function
+Eigen::Tensor<double, 3> opt_graph_only_symQ(unsigned int const &n_qubits, unsigned int const &qubitstate_size, unsigned int* const Adj) {
+    static std::vector<polynomial3> gmnk = get_all_gmnk(n_qubits);
+    Eigen::Tensor<int, 3> C_A = graph_characteristic(n_qubits, qubitstate_size, Adj);
+    std::unique_ptr<double[]> sqrt3_buffer = generate_sqrt3_buffer(n_qubits);
+    double norm = 1.0 / (1 << n_qubits);
+    polynomial3 pol_symQ(n_qubits, n_qubits, n_qubits);
+    // p is the last index so that it runs faster, for cache efficiency
+    sym_space_loop(n_qubits, [&](int const &r, int const &q, int const &p) {
+        pol_symQ += gmnk[p + (q + r * (n_qubits + 1)) * (n_qubits + 1)].mult(norm * sqrt3_buffer[(p+q+r)/2] * C_A(p, q, r));
+    });
+    return pol_symQ.as_binom_tensor(n_qubits);
 }
 
 // Calculates the symmetric Q function of a given adjacency matrix and saves it to filename. Prints time taken to perform the calculations
