@@ -148,7 +148,7 @@ Eigen::Tensor<double, 3> opt_graph_only_symQ(unsigned int const &n_qubits, unsig
     std::cout << "Summing polynomials" << std::endl;
     // p is the last index so that it runs faster, for cache efficiency
     sym_space_loop(n_qubits, [&](int const &r, int const &q, int const &p) {
-        pol_symQ += gmnk[p + (q + r * (n_qubits + 1)) * (n_qubits + 1)].mult(norm * sqrt3_buffer[(p+q+r)/2] * C_A(p, q, r));
+        pol_symQ.sum_mult(gmnk[p + (q + r * (n_qubits + 1)) * (n_qubits + 1)], norm * sqrt3_buffer[(p+q+r)/2] * C_A(p, q, r));
     });
     std::cout << "Finished summing polynomials" << std::endl;
     return pol_symQ.as_binom_tensor(n_qubits);
@@ -832,15 +832,51 @@ void check_opt_symQ() {
         std::cout << graph_num << std::endl;
         std::cout << "Calculating opt symQ" << std::endl;
         opt_symQ = opt_graph_only_symQ(n_qubits, qubitstate_size, Adj);
-        // opt_symQ = opt_symQ.unaryExpr(remove_negatives);
+        opt_symQ = opt_symQ.unaryExpr(remove_negatives);
         std::cout << "Calculating symQ" << std::endl;
         symonly_graphQ(full_symQ, n_qubits, qubitstate_size, Adj);
-        // full_symQ = full_symQ.unaryExpr(remove_negatives);
+        full_symQ = full_symQ.unaryExpr(remove_negatives);
         Eigen::Tensor<double, 0> b = opt_symQ.sum();
         Eigen::Tensor<double, 0> c = full_symQ.sum();
         std::cout << " Difference is " << b(0) << "\n";
         std::cout << " Difference is " << c(0) << "\n";
     });
+}
+
+// Returns a double approximation of Binom(N,k)
+static double double_binom(const unsigned int &N, const unsigned int &k) {
+    double res = 1;
+    for (int j = 1; j <= k; j++) {
+        res *= static_cast<double>(N + 1 - j) / j;
+    }
+    return res;
+}
+
+// Returns a tensor of doubles filled with all approximations of binomials (N,k) from k=0 to k=N
+static std::vector<double> double_binom(const unsigned int &N) {
+    std::vector<double> res(N+1);
+    for (unsigned int k = 0; k < N+1; k++) {
+        res[k] = double_binom(N, k);
+    }
+    return res;
+}
+
+void check_Rmnk() {
+    unsigned int n_qubits;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const unsigned int qubitstate_size = 1 << n_qubits;
+    double norm = 1.0 / qubitstate_size;
+    std::vector<polynomial> Kravchuks = get_Kravchuk_pols(n_qubits, n_qubits);
+    polynomial3 pol_Rmnk(n_qubits, n_qubits, n_qubits);
+    double binom_coeff = 1;
+    for (int l = 0; l <= n_qubits; l++) {
+        binom_coeff = std::pow(1.0 / double_binom(n_qubits, l), 2);
+        pol_Rmnk += polynomial3(Kravchuks[l], Kravchuks[l], Kravchuks[l]).mult(norm * binom_coeff);
+    }
+    Eigen::Tensor<double, 3> Rmnk = get_Rmnk(n_qubits);
+    Eigen::Tensor<double, 3> opt_Rmnk = pol_Rmnk.as_binom_tensor(n_qubits);
+    std::cout << 1 - norm * norm * (Rmnk * opt_Rmnk).sqrt().sum() << std::endl;
 }
 
 int main() {
