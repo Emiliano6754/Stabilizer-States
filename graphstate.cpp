@@ -140,14 +140,17 @@ std::unique_ptr<double[]> generate_sqrt3_buffer(unsigned int const &n_qubits) {
 // Returns the symmetric Q function of Adj from its characteristic function
 Eigen::Tensor<double, 3> opt_graph_only_symQ(unsigned int const &n_qubits, unsigned int const &qubitstate_size, unsigned int* const Adj) {
     static std::vector<polynomial3> gmnk = get_all_gmnk(n_qubits);
+    std::cout << "Calculating graph characteristic" << std::endl;
     Eigen::Tensor<int, 3> C_A = graph_characteristic(n_qubits, qubitstate_size, Adj);
-    std::unique_ptr<double[]> sqrt3_buffer = generate_sqrt3_buffer(n_qubits);
+    static std::unique_ptr<double[]> sqrt3_buffer = generate_sqrt3_buffer(n_qubits);
     double norm = 1.0 / (1 << n_qubits);
     polynomial3 pol_symQ(n_qubits, n_qubits, n_qubits);
+    std::cout << "Summing polynomials" << std::endl;
     // p is the last index so that it runs faster, for cache efficiency
     sym_space_loop(n_qubits, [&](int const &r, int const &q, int const &p) {
         pol_symQ += gmnk[p + (q + r * (n_qubits + 1)) * (n_qubits + 1)].mult(norm * sqrt3_buffer[(p+q+r)/2] * C_A(p, q, r));
     });
+    std::cout << "Finished summing polynomials" << std::endl;
     return pol_symQ.as_binom_tensor(n_qubits);
 }
 
@@ -812,8 +815,36 @@ void classify_graphs() {
     }
 }
 
+void check_opt_symQ() {
+    std::function<double(double)> remove_negatives = [](double x) {
+        return (std::abs(x) < 1e-10) ? 0.0 : x;
+    };
+    unsigned int n_qubits;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const unsigned int qubitstate_size = 1 << n_qubits;
+    double norm = 1.0 / qubitstate_size;
+    Eigen::Tensor<double, 3> opt_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+    Eigen::Tensor<double, 3> full_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+    for_all_graphs_Adj(n_qubits, [&] (unsigned int* const Adj, const unsigned int &graph_num) {
+        full_symQ.setZero();
+        opt_symQ.setZero();
+        std::cout << graph_num << std::endl;
+        std::cout << "Calculating opt symQ" << std::endl;
+        opt_symQ = opt_graph_only_symQ(n_qubits, qubitstate_size, Adj);
+        // opt_symQ = opt_symQ.unaryExpr(remove_negatives);
+        std::cout << "Calculating symQ" << std::endl;
+        symonly_graphQ(full_symQ, n_qubits, qubitstate_size, Adj);
+        // full_symQ = full_symQ.unaryExpr(remove_negatives);
+        Eigen::Tensor<double, 0> b = opt_symQ.sum();
+        Eigen::Tensor<double, 0> c = full_symQ.sum();
+        std::cout << " Difference is " << b(0) << "\n";
+        std::cout << " Difference is " << c(0) << "\n";
+    });
+}
+
 int main() {
-    classify_graphs();
+    check_opt_symQ();
     
 
     return 0;
