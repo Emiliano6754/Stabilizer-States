@@ -222,3 +222,15 @@ Eigen::Tensor<int, 3> graph_characteristic(unsigned int const &n_qubits, unsigne
     }
     return C_A;
 }
+
+// Saves the graph characteristic function characteristic
+void save_characteristic(Eigen::Tensor<int, 3> const &characteristic, std::string const &filename) {
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::ofstream output_file(cwd.string()+"/data/symQfuncs/characteristic/"+filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    Eigen::TensorIOFormat csv_format = Eigen::TensorIOFormat(/*separator=*/{",\n", ""}, /*prefix=*/{"", ""}, /*suffix=*/{"", ""}, /*precision=*/Eigen::FullPrecision, /*flags=*/0, /*tenPrefix=*/"", /*tenSuffix=*/"");
+    if (output_file.is_open()) {
+        output_file << characteristic.format(csv_format) << std::endl;
+    } else {
+        std::cout << "Could not save characteristic" << std::endl;
+    }
+}

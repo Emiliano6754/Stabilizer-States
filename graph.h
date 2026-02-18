@@ -44,4 +44,7 @@ void generate_selected_graph(unsigned int &n_qubits, unsigned int *Adj, std::str
 // Returns the graph characteristic function C_A of Adj
 Eigen::Tensor<int, 3> graph_characteristic(unsigned int const &n_qubits, unsigned int const &qubitstate_size, unsigned int *Adj);
 
+// Saves the graph characteristic function characteristic
+void save_characteristic(Eigen::Tensor<int, 3> const &characteristic, std::string const &filename);
+
 #endif
