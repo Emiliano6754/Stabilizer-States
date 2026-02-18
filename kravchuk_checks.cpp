@@ -4,26 +4,15 @@
 #include<kravchuk.h>
 #include<sym_space.h>
 
-static unsigned int fact(const unsigned int &n) {
-    if (n == 0) { 
-        return 1;
-    }
-    unsigned int res = n;
-    for (unsigned int j = 2; j < n; j++) {
-        res *= j;
+// Returns a double approximation of Binom(N,k)
+static double binom(const unsigned int &N, const unsigned int &k) {
+    double res = 1;
+    for (int j = 1; j <= k; j++) {
+        res *= static_cast<double>(N + 1 - j) / j;
     }
     return res;
 }
 
-// Returns Binom(N,k)
-static unsigned int binom(const unsigned int &N, const unsigned int &k) {
-    unsigned int res = 1;
-    for (unsigned int j = N; j > N - k; j--) {
-        res *= j;
-    }
-    res /= fact(k);
-    return res;
-}
 
 // Returns a tensor of doubles filled with all binomials (N,k) from k=0 to k=N
 static Eigen::Tensor<double, 1> binom(const unsigned int &N) {
