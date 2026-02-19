@@ -140,17 +140,14 @@ std::unique_ptr<double[]> generate_sqrt3_buffer(unsigned int const &n_qubits) {
 // Returns the symmetric Q function of Adj from its characteristic function
 Eigen::Tensor<double, 3> opt_graph_only_symQ(unsigned int const &n_qubits, unsigned int const &qubitstate_size, unsigned int* const Adj) {
     static std::vector<kravchuk_exp> gmnk = get_all_gmnk(n_qubits);
-    std::cout << "Calculating graph characteristic" << std::endl;
     Eigen::Tensor<int, 3> C_A = graph_characteristic(n_qubits, qubitstate_size, Adj);
     static std::unique_ptr<double[]> sqrt3_buffer = generate_sqrt3_buffer(n_qubits);
     double norm = 1.0 / (1 << n_qubits);
     kravchuk_exp exp_symQ(n_qubits);
-    std::cout << "Summing polynomials" << std::endl;
     // p is the last index so that it runs faster, for cache efficiency
     sym_space_loop(n_qubits, [&](int const &r, int const &q, int const &p) {
         exp_symQ.sum_mult(gmnk[p + (q + r * (n_qubits + 1)) * (n_qubits + 1)], norm * sqrt3_buffer[(p+q+r)/2] * C_A(p, q, r));
     });
-    std::cout << "Finished summing polynomials" << std::endl;
     return exp_symQ.as_binom_tensor();
 }
 
@@ -973,8 +970,39 @@ void save_gmnk() {
     });
 }
 
+void compare_graph_localization() {
+    unsigned int n_qubits;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const unsigned int qubitstate_size = 1 << n_qubits;
+    Eigen::Tensor<double, 3> symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+    Eigen::Tensor<int, 3> C_A(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+    Eigen::Tensor<double, 0> loc;
+    Eigen::Tensor<int, 0> loc2;
+    
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::ofstream save_file(cwd.string()+"/data/graphs/loc_q"+std::to_string(n_qubits)+".txt",std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    if (save_file.is_open()) {
+        auto start = std::chrono::high_resolution_clock::now();
+        for_all_graphs_Adj(n_qubits, [&] (unsigned int* const Adj, unsigned int const &graph_num) {
+            symQ = opt_graph_only_symQ(n_qubits, qubitstate_size, Adj);
+            loc = symQ.square().sum();
+            save_file << loc(0) << ", ";
+            C_A = graph_characteristic(n_qubits, qubitstate_size, Adj);
+            loc2 = C_A.square().sum();
+            save_file << loc2(0) << "\n";
+            std::cout << graph_num << "\n";
+        });
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> duration = end - start;
+        std::cout << "Calculating took " << duration.count() << "s" << std::endl;
+    } else {
+        std::cout << "Could not save localization values" << std::endl;
+    }
+}
+
 int main() {
-    opt_calc_selected_graph();
+    compare_graph_localization();
 
     return 0;
 }
