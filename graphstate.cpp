@@ -139,19 +139,19 @@ std::unique_ptr<double[]> generate_sqrt3_buffer(unsigned int const &n_qubits) {
 
 // Returns the symmetric Q function of Adj from its characteristic function
 Eigen::Tensor<double, 3> opt_graph_only_symQ(unsigned int const &n_qubits, unsigned int const &qubitstate_size, unsigned int* const Adj) {
-    static std::vector<polynomial3> gmnk = get_all_gmnk(n_qubits);
+    static std::vector<kravchuk_exp> gmnk = get_all_gmnk(n_qubits);
     std::cout << "Calculating graph characteristic" << std::endl;
     Eigen::Tensor<int, 3> C_A = graph_characteristic(n_qubits, qubitstate_size, Adj);
     static std::unique_ptr<double[]> sqrt3_buffer = generate_sqrt3_buffer(n_qubits);
     double norm = 1.0 / (1 << n_qubits);
-    polynomial3 pol_symQ(n_qubits, n_qubits, n_qubits);
+    kravchuk_exp exp_symQ(n_qubits);
     std::cout << "Summing polynomials" << std::endl;
     // p is the last index so that it runs faster, for cache efficiency
     sym_space_loop(n_qubits, [&](int const &r, int const &q, int const &p) {
-        pol_symQ.sum_mult(gmnk[p + (q + r * (n_qubits + 1)) * (n_qubits + 1)], norm * sqrt3_buffer[(p+q+r)/2] * C_A(p, q, r));
+        exp_symQ.sum_mult(gmnk[p + (q + r * (n_qubits + 1)) * (n_qubits + 1)], norm * sqrt3_buffer[(p+q+r)/2] * C_A(p, q, r));
     });
     std::cout << "Finished summing polynomials" << std::endl;
-    return pol_symQ.as_binom_tensor(n_qubits);
+    return exp_symQ.as_binom_tensor();
 }
 
 // Calculates the symmetric Q function of a given adjacency matrix and saves it to filename. Prints time taken to perform the calculations
@@ -889,31 +889,23 @@ void check_Rmnk() {
     get_unsignedint(n_qubits);
     const unsigned int qubitstate_size = 1 << n_qubits;
     double norm = 1.0 / qubitstate_size;
-    std::vector<polynomial> Kravchuks = get_Kravchuk_pols(n_qubits, n_qubits);
-    polynomial3 pol_Rmnk(n_qubits, n_qubits, n_qubits);
-    polynomial3 kravchuk_prod(n_qubits, n_qubits, n_qubits);
-    double binom_coeff = 1;
-    for (int l = 0; l <= n_qubits; l++) {
-        kravchuk_prod = polynomial3(Kravchuks[l], Kravchuks[l], Kravchuks[l]);
-        binom_coeff = (1.0 / (1 << n_qubits)) * std::pow(1.0 / double_binom(n_qubits, l), 2);
-        pol_Rmnk.sum_mult(kravchuk_prod, binom_coeff);
-        std::cout << "Cumulative sum = ";
-        pol_Rmnk.print();
-        std::cout << "Individual kravchuk = ";
-        Kravchuks[l].print();
-    }
     Eigen::Tensor<double, 3> Rmnk = get_Rmnk(n_qubits);
-    Eigen::Tensor<double, 3> opt_Rmnk = pol_Rmnk.as_binom_tensor(n_qubits);
-    opt_Rmnk = opt_Rmnk.unaryExpr(remove_negatives);
-    std::cout << 1 - norm * norm * (Rmnk * opt_Rmnk).sqrt().sum() << std::endl;
 
+    kravchuk_exp expansion_Rmnk(n_qubits);
+    for (int l = 0; l <= n_qubits; l++) {
+        expansion_Rmnk(l, l, l) = norm * std::pow(1.0 / double_binom(n_qubits, l), 2);
+    }
+    Eigen::Tensor<double, 3> opt_Rmnk = expansion_Rmnk.as_binom_tensor();
+    opt_Rmnk = opt_Rmnk.unaryExpr(remove_negatives);
+    Eigen::Tensor<double, 0> sqrt_distance;
+    sqrt_distance = norm * norm * (Rmnk * opt_Rmnk).sqrt().sum();
+    std::cout << "Opt diff = " << 1 - sqrt_distance(0) << std::endl;
 
     Eigen::Tensor<double, 3> Kravchuk_Rmnk(n_qubits + 1, n_qubits + 1, n_qubits + 1);
-    Eigen::Tensor<double, 0> sqrt_distance;
     Kravchuk_Rmnk.setZero();
-    
     auto binoms = binom(n_qubits);
     auto binoms2 = binom2(n_qubits);
+    auto Kravchuks = get_Kravchuk_pols(n_qubits, n_qubits);
     // Normalize both Kravchuks to 1, for Hellinger distance
     double norm_fact = std::pow(1.0 / (1 << n_qubits), 3);
     sym_space_loop(n_qubits, 
@@ -925,32 +917,33 @@ void check_Rmnk() {
                 // std::cout << "Kravchuk(" << m << ", " << n << ", " << k << ") = " << Kravchuk_Rmnk(m, n, k) << std::endl;
                 // std::cout << "Pol Kravchuk(" << m << ", " << n << ", " << k << ") = " << pol_Rmnk.binom_eval(n_qubits, m, n, k) << std::endl;
             });
-    sqrt_distance = norm * (Kravchuk_Rmnk * opt_Rmnk).sqrt().sum();
-    std::cout << "N = " << n_qubits << ". Diff = " << 1 - sqrt_distance(0) << std::endl;
     sqrt_distance = norm * (Kravchuk_Rmnk * Rmnk).sqrt().sum();
-    std::cout << "N = " << n_qubits << ". Diff buena= " << 1 - sqrt_distance(0) << std::endl;
+    std::cout << "Diff buena= " << 1 - sqrt_distance(0) << std::endl;
 }
 
 // Calculates the Q function of a given adjacency matrix and saves it to filename. Prints time taken to perform the calculations
 void opt_calc_save_graph_symQ(const unsigned int &n_qubits, unsigned int* Adj, const std::string &filename) {
+    std::function<double(double)> remove_negatives = [](double x) {
+        return (x < 0) ? 0.0 : x;
+    };
     const unsigned int qubitstate_size = 1 << n_qubits;
-    Eigen::Tensor<double,3> sym_Qfunc(n_qubits+1,n_qubits+1,n_qubits+1);
     auto start = std::chrono::high_resolution_clock::now();
-    sym_Qfunc = opt_graph_only_symQ(n_qubits, qubitstate_size, Adj);
+    Eigen::Tensor<double,3> opt_symQ = opt_graph_only_symQ(n_qubits, qubitstate_size, Adj);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
+    opt_symQ = opt_symQ.unaryExpr(remove_negatives);
     std::cout << "Calculating took " << duration.count() << "s" << std::endl;
-    save_symQfunc(sym_Qfunc,filename);
+    save_symQfunc(opt_symQ,filename);
 }
 
-void opt_calc_manual_graph() {
+void opt_calc_selected_graph() {
     unsigned int n_qubits = 0;
     std::cout << "Enter the number of qubits" << std::endl;
     get_unsignedint(n_qubits);
     unsigned int* Adj = static_cast<unsigned int*>(_malloca(n_qubits * n_qubits * sizeof(unsigned int)));
     std::string filename = "";
-    parse_manual_graph(n_qubits, Adj, filename);
-    calc_save_graph_symQ(n_qubits, Adj, filename);
+    generate_selected_graph(n_qubits, Adj, filename);
+    opt_calc_save_graph_symQ(n_qubits, Adj, filename);
 }
 
 void calc_save_characteristic() {
@@ -971,18 +964,17 @@ void save_gmnk() {
     std::cout << "Enter the number of qubits" << std::endl;
     get_unsignedint(n_qubits);
     const unsigned int qubitstate_size = 1 << n_qubits;
-    std::vector<polynomial3> gmnk = get_all_gmnk(n_qubits);
+    std::vector<kravchuk_exp> gmnk = get_all_gmnk(n_qubits);
     int num = 0;
     std::string prefix = "gmnk/q" + std::to_string(n_qubits) + "_";
     sym_space_loop(n_qubits, [&] (int const &r, int const &q, int const &p) {
-        save_symQfunc(gmnk[p + (q + r * (n_qubits + 1)) * (n_qubits + 1)].as_binom_tensor(n_qubits), prefix + std::to_string(num) + ".txt");
+        save_symQfunc(gmnk[p + (q + r * (n_qubits + 1)) * (n_qubits + 1)].as_binom_tensor(), prefix + std::to_string(num) + ".txt");
         num++;
     });
 }
 
 int main() {
-    check_Rmnk();
-    
+    opt_calc_selected_graph();
 
     return 0;
 }
