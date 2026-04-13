@@ -83,8 +83,36 @@ void check_Rmnk() {
     }
 }
 
+void check_gaussian_Rmnk() {
+    unsigned int max_n;
+    std::cout << "Enter the maximum number of qubits to check" << std::endl;
+    get_unsignedint(max_n);
+    Eigen::Tensor<double, 3> exact_Rmnk, Gaussian_Rmnk;
+    Eigen::array<Eigen::Index, 3> dimensions;
+    Eigen::Tensor<double, 1> binoms(max_n), binoms2(max_n);
+    double norm_fact = 1;
+    Eigen::Tensor<double, 0> sqrt_distance;
+    for (int n_qubits = 1; n_qubits <= max_n; n_qubits++) {
+        exact_Rmnk = std::pow(1.0 / (1 << n_qubits), 2) * get_Rmnk(n_qubits);
+        dimensions = Eigen::array<Eigen::Index, 3>{n_qubits + 1, n_qubits + 1, n_qubits + 1};
+        Gaussian_Rmnk.resize(dimensions);
+        Gaussian_Rmnk.setZero();
+        {
+            // Normalize both Kravchuks to 1, for Hellinger distance
+            norm_fact = std::sqrt(2.0 / (3.1416 * n_qubits)) * (4.0 / (3.1416 * n_qubits));
+            sym_space_loop(n_qubits, 
+            [&] (int const &m, int const &n, int const &k) {
+                        Gaussian_Rmnk(m, n, k) = norm_fact * std::exp(- 2.0 * n_qubits * ((static_cast<float>(m)/n_qubits - 0.5) * (static_cast<float>(m)/n_qubits - 0.5) + (static_cast<float>(n)/n_qubits - 0.5) * (static_cast<float>(n)/n_qubits - 0.5) + (static_cast<float>(k)/n_qubits - 0.5) * (static_cast<float>(k)/n_qubits - 0.5)) );
+                    }
+                );
+            sqrt_distance = (exact_Rmnk * Gaussian_Rmnk).sqrt().sum();
+            std::cout << "N = " << n_qubits << ". Diff = " << 1 - sqrt_distance(0) << std::endl;
+        }
+    }
+}
+
 int main() {
-    check_Rmnk();
+    check_gaussian_Rmnk();
 
     return 0;
 }

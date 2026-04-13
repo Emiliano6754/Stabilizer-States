@@ -223,7 +223,7 @@ Eigen::Tensor<int, 3> graph_characteristic(unsigned int const &n_qubits, unsigne
     return C_A;
 }
 
-// Saves the graph characteristic function characteristic
+// Saves the graph characteristic function
 void save_characteristic(Eigen::Tensor<int, 3> const &characteristic, std::string const &filename) {
     const std::filesystem::path cwd = std::filesystem::current_path();
     std::ofstream output_file(cwd.string()+"/data/symQfuncs/characteristic/"+filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);

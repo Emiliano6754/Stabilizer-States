@@ -823,20 +823,14 @@ void check_opt_symQ() {
     double norm = 1.0 / qubitstate_size;
     Eigen::Tensor<double, 3> opt_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
     Eigen::Tensor<double, 3> full_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
+    Eigen::Tensor<int, 3> C_A(n_qubits + 1, n_qubits + 1, n_qubits + 1);
     for_all_graphs_Adj(n_qubits, [&] (unsigned int* const Adj, const unsigned int &graph_num) {
         full_symQ.setZero();
         opt_symQ.setZero();
         std::cout << graph_num << std::endl;
         std::cout << "Calculating opt symQ" << std::endl;
-        opt_symQ = opt_graph_only_symQ(n_qubits, qubitstate_size, Adj);
-        opt_symQ = opt_symQ.unaryExpr(remove_negatives);
-        std::cout << "Calculating symQ" << std::endl;
-        symonly_graphQ(full_symQ, n_qubits, qubitstate_size, Adj);
-        full_symQ = full_symQ.unaryExpr(remove_negatives);
-        Eigen::Tensor<double, 0> b = opt_symQ.sum();
-        Eigen::Tensor<double, 0> c = full_symQ.sum();
-        std::cout << " Difference is " << b(0) << "\n";
-        std::cout << " Difference is " << c(0) << "\n";
+        C_A = graph_characteristic(n_qubits, qubitstate_size, Adj);
+        save_characteristic(C_A, "characteristic/q" + std::to_string(n_qubits) + "_" + std::to_string(graph_num) + ".txt");
     });
 }
 
@@ -1002,7 +996,7 @@ void compare_graph_localization() {
 }
 
 int main() {
-    compare_graph_localization();
+    opt_calc_selected_graph();
 
     return 0;
 }
