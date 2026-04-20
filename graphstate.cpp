@@ -127,7 +127,7 @@ void symonly_graphQ(Eigen::Tensor<double,3> &sym_Qfunc, const unsigned int &n_qu
 }
 
 // Generates a buffer of all powers of 1/sqrt(3) from 0 to n_qubits
-std::unique_ptr<double[]> generate_sqrt3_buffer(unsigned int const &n_qubits) {
+static std::unique_ptr<double[]> generate_sqrt3_buffer(unsigned int const &n_qubits) {
     std::unique_ptr<double[]> sqrt3_buffer = std::make_unique<double[]>(n_qubits + 1);
     double sqrt3_power = 1;
     for (int j = 0; j <= n_qubits; j++) {
@@ -308,6 +308,22 @@ static void get_unsignedint(unsigned int &parsed_input) {
     try {
         unsigned long u = std::stoul(input);
         if (u > std::numeric_limits<unsigned int>::max())
+            throw std::out_of_range(input);
+
+        parsed_input = u;
+    } catch (const std::invalid_argument& e) {
+        std::cout << "Input could not be parsed: " << e.what() << std::endl;
+    } catch (const std::out_of_range& e) {
+        std::cout << "Input out of range: " << e.what() << std::endl;
+    }
+}
+
+static void get_double(double &parsed_input) {
+    std::string input = "";
+    std::cin >> input;
+    try {
+        double u = std::stod(input);
+        if (u > std::numeric_limits<double>::max())
             throw std::out_of_range(input);
 
         parsed_input = u;
@@ -823,14 +839,20 @@ void check_opt_symQ() {
     double norm = 1.0 / qubitstate_size;
     Eigen::Tensor<double, 3> opt_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
     Eigen::Tensor<double, 3> full_symQ(n_qubits + 1, n_qubits + 1, n_qubits + 1);
-    Eigen::Tensor<int, 3> C_A(n_qubits + 1, n_qubits + 1, n_qubits + 1);
     for_all_graphs_Adj(n_qubits, [&] (unsigned int* const Adj, const unsigned int &graph_num) {
         full_symQ.setZero();
         opt_symQ.setZero();
         std::cout << graph_num << std::endl;
         std::cout << "Calculating opt symQ" << std::endl;
-        C_A = graph_characteristic(n_qubits, qubitstate_size, Adj);
-        save_characteristic(C_A, "characteristic/q" + std::to_string(n_qubits) + "_" + std::to_string(graph_num) + ".txt");
+        opt_symQ = opt_graph_only_symQ(n_qubits, qubitstate_size, Adj);
+        opt_symQ = opt_symQ.unaryExpr(remove_negatives);
+        std::cout << "Calculating symQ" << std::endl;
+        symonly_graphQ(full_symQ, n_qubits, qubitstate_size, Adj);
+        full_symQ = full_symQ.unaryExpr(remove_negatives);
+        Eigen::Tensor<double, 0> b = opt_symQ.sum();
+        Eigen::Tensor<double, 0> c = full_symQ.sum();
+        std::cout << " Difference is " << b(0) << "\n";
+        std::cout << " Difference is " << c(0) << "\n";
     });
 }
 
@@ -931,7 +953,7 @@ void opt_calc_selected_graph() {
     unsigned int n_qubits = 0;
     std::cout << "Enter the number of qubits" << std::endl;
     get_unsignedint(n_qubits);
-    unsigned int* Adj = static_cast<unsigned int*>(_malloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(_malloca(n_qubits * sizeof(unsigned int)));
     std::string filename = "";
     generate_selected_graph(n_qubits, Adj, filename);
     opt_calc_save_graph_symQ(n_qubits, Adj, filename);
@@ -943,7 +965,7 @@ void calc_save_characteristic() {
     get_unsignedint(n_qubits);
     const unsigned int qubitstate_size = 1 << n_qubits;
     std::string suffix;
-    unsigned int* Adj = static_cast<unsigned int*>(_malloca(n_qubits * n_qubits * sizeof(unsigned int)));
+    unsigned int* Adj = static_cast<unsigned int*>(_malloca(n_qubits * sizeof(unsigned int)));
     generate_selected_graph(n_qubits, Adj, suffix);
     
     Eigen::Tensor<int, 3> C_A = graph_characteristic(n_qubits, qubitstate_size, Adj);
@@ -995,8 +1017,54 @@ void compare_graph_localization() {
     }
 }
 
+void save_coherent_state_symQ() {
+    unsigned int n_qubits, type;
+    std::cout << "Enter the number of qubits" << std::endl;
+    get_unsignedint(n_qubits);
+    const unsigned int qubitstate_size = 1 << n_qubits;
+    std::cout << "Select coherent state type: 0 for SU(2) coherent, 1 for discrete coherent" << std::endl;
+    get_unsignedint(type);
+    Eigen::Tensor<double, 3> characteristic, symQ;
+    std::string filename;
+    double n_x, n_y, n_z, norm;
+    unsigned int s, t, u;
+    switch(type) {
+        case 0:
+        std::cout << "Enter a Bloch vector (possibly non-normalized)" << std::endl;
+        get_double(n_x);
+        get_double(n_y);
+        get_double(n_z);
+        norm = n_x * n_x + n_y * n_y + n_z * n_z;
+        n_x /= norm;
+        n_y /= norm;
+        n_z /= norm;
+        characteristic = get_Rmnk(n_qubits);
+        sym_space_loop(n_qubits, [&] (int const &r, int const &q, int const &p) {
+            characteristic(p, q, r) *= std::pow(n_x, (-p + q + r) / 2) * std::pow(n_y, (p + q - r) / 2) * std::pow(n_z, (p - q + r) / 2);
+        });
+        symQ = characteristic_symQ(n_qubits, qubitstate_size, characteristic);
+        std::cout << "Enter a filename, without number of qubits and filetype" << std::endl;
+        std::cin >> filename;
+        save_symQfunc(symQ, filename + "_q" + std::to_string(n_qubits) + ".txt");
+        return;
+        case 1:
+        std::cout << "Enter valid weights of the coherent state" << std::endl;
+        get_unsignedint(s);
+        get_unsignedint(t);
+        get_unsignedint(u);
+        characteristic = get_gmnk(n_qubits, s, t, u);
+        symQ = characteristic_symQ(n_qubits, qubitstate_size, characteristic);
+        filename = "coherent_" + std::to_string(s) + "_" + std::to_string(t) + "_" + std::to_string(u) + "_q" + std::to_string(n_qubits) + ".txt";
+        save_symQfunc(symQ, filename);
+        return;
+        default:
+        std::cout << "Non valid coherent type" << std::endl;
+        return;
+    }
+}
+
 int main() {
-    opt_calc_selected_graph();
+    save_coherent_state_symQ();
 
     return 0;
 }
