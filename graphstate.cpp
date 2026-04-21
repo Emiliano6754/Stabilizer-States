@@ -765,30 +765,6 @@ int exp_val_Sx_r(const unsigned int &n_qubits, const unsigned int &r, unsigned i
     return exp_val;
 }
 
-// Loops over all graphs with n_qubits, calculating their adjacency matrix and executes a particular function acting on it and the graph number
-template<typename LoopFunc> 
-void for_all_graphs_Adj(const unsigned int &n_qubits, LoopFunc operate_graph) {
-    const std::filesystem::path cwd = std::filesystem::current_path();
-    std::string graphs_suffix = std::to_string(n_qubits) + ".txt";
-    std::ifstream input_file(cwd.string()+"/data/graphs/"+graphs_suffix,std::ifstream::in);
-    std::string line;
-    unsigned int graph_num = 1;
-    
-    unsigned int* const Adj = static_cast<unsigned int*>(alloca(n_qubits * sizeof(unsigned int)));
-
-    if (input_file.is_open()) {
-        while (std::getline(input_file, line)) {
-            parse_graph_line(n_qubits, line, Adj);
-            
-            operate_graph(Adj, graph_num);
-
-            graph_num++;
-        }
-    } else {
-        std::cout << "Could not parse graphs" << std::endl;
-    }
-}
-
 // Calculates the exact expected values of Sx^r for r = 1, ..., 4 for all graph states with a prompted number of qubits and saves them in the same order as the database
 void classify_graphs() {
     unsigned int n_qubits;
@@ -996,7 +972,7 @@ void compare_graph_localization() {
 }
 
 int main() {
-    opt_calc_selected_graph();
+    calc_save_all_graph_properties();
 
     return 0;
 }

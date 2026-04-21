@@ -1,8 +1,6 @@
 #include "graph.h"
 #include<algorithm>
-#include<iostream>
-#include<fstream>
-#include<filesystem>
+#include<immintrin.h>
 
 static void get_unsignedint(unsigned int &parsed_input) {
     std::string input = "";
@@ -232,5 +230,264 @@ void save_characteristic(Eigen::Tensor<int, 3> const &characteristic, std::strin
         output_file << characteristic.format(csv_format) << std::endl;
     } else {
         std::cout << "Could not save characteristic" << std::endl;
+    }
+}
+
+
+// Build a new simple graph with n_vertices vertices, where connected determines if any two vertices are connected by default
+simple_graph::simple_graph(unsigned int const &n_vertices, bool const &connected) : n_vertices(n_vertices), adj(n_vertices, n_vertices, 0u) {
+    if (connected) {
+        unsigned int mask = 1 << n_vertices - 1;
+        for (int j = 0; j < n_vertices; j++) {
+            adj[j] ^= mask ^ (1 << j);
+        }
+    }
+}
+
+// Adds (or removes if already present) edge (a,b) to the graph. Edges (a,a) can't be added by this function, which is wanted behavior as we only allow simple graphs
+simple_graph& simple_graph::add_edge(const unsigned int &a, const unsigned int &b) {
+    adj[a] ^= 1 << b;
+    adj[b] ^= 1 << a;
+    return *this;
+}
+
+// Adds (or removes if already present) edge (a,b) to the graph. Edges (a,a) can't be added by this function, which is wanted behavior as we only allow simple graphs
+simple_graph& simple_graph::add_edge(const std::pair<unsigned int, unsigned int> &edge) {
+    adj[edge.first] ^= 1 << edge.second;
+    adj[edge.second] ^= 1 << edge.first;
+    return *this;
+}
+
+// Adds (or removes if already present) all edges from Edge_list to the graph. Edges (a,a) can't be added by this function, which is wanted behavior as we only allow simple graphs
+simple_graph& simple_graph::add_edge_list(const Edge_list &edge_list) {
+    for (int j = 0; j < edge_list.size(); j++) {
+        adj[edge_list[j].first] ^= 1 << edge_list[j].second;
+        adj[edge_list[j].second] ^= 1 << edge_list[j].first;
+    }
+    return *this;
+}
+
+// Adds (or removes if already present) all cyclic edges to the graph
+simple_graph& simple_graph::add_cyclic_edges() {
+    for (int j = 1; j < n_vertices; j++) {
+        add_edge(j-1, j);
+    }
+    add_edge(n_vertices-1, 0);
+    return *this;
+}
+
+// Clears all edges from the graph
+simple_graph& simple_graph::clear_edges() {
+    for (int j = 0; j < n_vertices; j++) {
+        adj[j] = 0;
+    }
+    return *this;
+}
+
+// Prompts user to create a graph manually via introducing the vertex connections
+simple_graph& simple_graph::add_manual_edges() {
+    unsigned int q1, q2;
+    bool finished = false;
+    std::string input;
+    while (!finished) {
+        std::cout << "Enter a vertex connection" << std::endl;
+        get_unsignedint(q1);
+        get_unsignedint(q2);
+        if (q1 < n_vertices || q2 < n_vertices) {
+            add_edge(q1, q2);
+            std::cout << "Enter n to exit" << std::endl;
+            std::getline(std::cin, input);
+            if (std::cin.peek() != '\n') {
+                std::cin >> input;
+                if (input == "n") {
+                    break;
+                }
+            }
+            
+        } else {
+            std::cout << "Connection outside bounds" << std::endl;
+        }
+    }
+    return *this;
+}
+
+// Returns the maximum degree of a vertex in this
+unsigned int simple_graph::min_degree() const {
+    unsigned int min = n_vertices;
+    for (unsigned int n = 0; n < n_vertices; n++) {
+        if (min > std::popcount(adj[n])) {
+            min = std::popcount(adj[n]);
+        }
+    }
+    return min;
+}
+
+// Returns the maximum degree of a vertex in this
+unsigned int simple_graph::max_degree() const {
+    unsigned int max = 0;
+    for (unsigned int n = 0; n < n_vertices; n++) {
+        if (max < std::popcount(adj[n])) {
+            max = std::popcount(adj[n]);
+        }
+    }
+    return max;
+}
+
+// Returns the average degree of vertices in this
+double simple_graph::avg_degree() const {
+    double avg = 0;
+    for (unsigned int n = 0; n < n_vertices; n++) {
+        avg += std::popcount(adj[n]);
+    }
+    return avg / n_vertices;
+}
+
+// Returns the minimum, maximum and average degrees of vertices in this, as a tuple in that order
+std::tuple<unsigned int, unsigned int, double> simple_graph::degrees() const {
+    unsigned int min = n_vertices, max = 0;
+    double avg = 0;
+    for (unsigned int n = 0; n < n_vertices; n++) {
+        if (min > std::popcount(adj[n])) {
+            min = std::popcount(adj[n]);
+        }
+        if (max < std::popcount(adj[n])) {
+            max = std::popcount(adj[n]);
+        }
+        avg += std::popcount(adj[n]);
+    }
+    return std::tuple(min, max, avg / n_vertices);
+}
+
+// Returns the minimum, maximum and average cut-rank of this, as a tuple in that order. For now, the slowing factor seems to be allocation of memory. Could potentially define versions of GF2N_matrix where the number of rows and columns can be modified (as long as it fits the previous), so that no reallocation is needed? And only perform reallocation when actually needed, then start with the largest subset
+std::tuple<unsigned int, unsigned int, double> simple_graph::cut_ranks() const {
+    const uint32_t powerset_size = 1 << n_vertices;
+    const uint32_t full_mask = powerset_size - 1;
+    uint32_t inv_subset = 0, shifted_subset = 0, leading_pos = 0;
+    unsigned int subset_size = 0, min_rank = n_vertices, max_rank = 0, current_rank = 0;
+    double avg_rank = 0;
+    for (uint32_t subset = 1; subset < full_mask; subset++) {
+        // Invert subset as a mask to get connections to non-active bits
+        inv_subset = subset ^ full_mask;
+        subset_size = std::popcount(subset);
+        // Submatrix with the connections from subset to its complement
+        GF2N_matrix submatrix(subset_size, n_vertices - subset_size, 0u);
+        leading_pos = 0;
+        shifted_subset = subset;
+        for (uint32_t j = 0; j < subset_size; j++) {
+            // Find where the jth active bit in subset is
+            while (!(shifted_subset & 1)) {
+                shifted_subset = shifted_subset >> 1;
+                leading_pos += 1;
+            }
+            // Next row corresponds to the connections of the jth active bit with all non-active bits, in contiguous low bits
+            submatrix[j] = _pext_u32(adj[leading_pos], inv_subset);
+        }
+        current_rank = submatrix.rank();
+        min_rank = std::min(min_rank, current_rank);
+        max_rank = std::max(max_rank, current_rank);
+        avg_rank += current_rank;
+    }
+    return std::tuple(min_rank, max_rank, avg_rank / (full_mask - 1));
+}
+
+// Returns the rank-width of this. To be implemented
+double simple_graph::rank_width() const {
+    return 0;
+}
+
+// Clears the graph, then parses line as a graph in edge_list format from http://combos.org/nauty
+simple_graph& simple_graph::parse_graph_from_line(std::string const &line) {
+    clear_edges();
+    std::string first, second;
+    bool finished = false;
+    unsigned int next_sc = 0;
+    unsigned int comma_pos = 0;
+    unsigned int last_sc = 0;
+    last_sc = line.find(':');
+    while(!finished) {
+        next_sc = line.find(';', last_sc+1);
+        comma_pos = line.find(',', last_sc);
+        if (next_sc == std::string::npos || next_sc >= line.size()) {
+            finished = true;
+            next_sc = line.size();
+        }
+        first = line.substr(last_sc+1, comma_pos-last_sc-1);
+        second = line.substr(comma_pos+1, next_sc-comma_pos-1);
+        add_edge(std::stoul(first) - 1, std::stoul(second) - 1);
+        
+        last_sc = next_sc;
+    }
+    return *this;
+}
+
+// Clears the graph, then parses the graph_num graph (as numerated in the graph list) with n_vertices unlabeled nodes from the edge list. Assumes the graph library file is named as n_qubits.txt
+simple_graph& simple_graph::parse_graph_from_edge_list(const unsigned int &graph_num) {
+    clear_edges();
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    const std::string filename = std::to_string(n_vertices) + ".txt";
+    std::ifstream input_file(cwd.string()+"/data/graphs/"+filename,std::ifstream::in);
+    std::string line;
+    unsigned int pos = 1;
+    if (input_file.is_open()) {
+        while (std::getline(input_file, line)) {
+            if (pos == graph_num) {
+                parse_graph_from_line(line);
+                break;
+            }
+            pos++;
+        }
+    } else {
+        std::cout << "Could not parse graph" << std::endl;
+    }
+    return *this;
+}
+
+// Returns the graph characteristic function C_A of Adj
+Eigen::Tensor<int, 3> simple_graph::graph_characteristic() const {
+    Eigen::Tensor<int, 3> C_A(n_vertices+1, n_vertices+1, n_vertices+1);
+    C_A.setZero();
+    unsigned int powerset_size = 1 << n_vertices;
+    unsigned int mult = 0;
+    for (unsigned int eta = 0; eta < powerset_size; eta++) {
+        mult = adj.lmult(eta);
+        C_A(std::popcount(eta), std::popcount(mult), std::popcount(mult^eta)) += 1;
+    }
+    return C_A;
+}
+
+// Returns reference to the adjacency matrix of this as a GF2N_matrix
+GF2N_matrix& simple_graph::get_adj() {
+    return adj;
+}
+
+// Returns const reference to the adjacency matrix of this as a GF2N_matrix
+GF2N_matrix const& simple_graph::get_adj() const {
+    return adj;
+}
+
+// Returns the number of vertices as a copy
+unsigned int simple_graph::n_nodes() const {
+    return n_vertices;
+}
+
+void calc_save_all_graph_properties() {
+    unsigned int n_vertices = 0;
+    std::cout << "Enter the number of vertices" << std::endl;
+    get_unsignedint(n_vertices);
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    const std::string graphs_suffix = std::to_string(n_vertices) + "_props.txt";
+    std::ofstream save_file(cwd.string()+"/data/graphs/"+graphs_suffix,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    if (save_file.is_open()) {
+        for_all_graphs(n_vertices, [&](const simple_graph &graph, unsigned int const &graph_num) {
+            std::cout << "Calculating degrees" << std::endl;
+            std::tuple<unsigned int, unsigned int, double> degrees = graph.degrees();
+            std::cout << "Calculating ranks" << std::endl;
+            std::tuple<unsigned int, unsigned int, double> ranks = graph.cut_ranks();
+            std::cout << "Saving degrees and ranks" << std::endl;
+            save_file << std::get<0>(degrees) << ", " << std::get<1>(degrees) << ", " << std::get<2>(degrees) << ", " << std::get<0>(ranks) << ", " << std::get<1>(ranks) << ", " << std::get<2>(ranks) << "\n";
+        });
+        save_file.close();
+    } else {
+        std::cout << "Could not save graph properties" << std::endl;
     }
 }
