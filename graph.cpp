@@ -1,6 +1,8 @@
 #include "graph.h"
 #include<algorithm>
 #include<immintrin.h>
+#include<bit>
+#include<bitset>
 
 static void get_unsignedint(unsigned int &parsed_input) {
     std::string input = "";
@@ -363,31 +365,32 @@ std::tuple<unsigned int, unsigned int, double> simple_graph::cut_ranks() const {
     const uint32_t powerset_size = 1 << n_vertices;
     const uint32_t full_mask = powerset_size - 1;
     uint32_t inv_subset = 0, shifted_subset = 0, leading_pos = 0;
-    unsigned int subset_size = 0, min_rank = n_vertices, max_rank = 0, current_rank = 0;
+    unsigned int subset_size = 0, min_rank = n_vertices, max_rank = 0, current_rank = 0, trailing_zeros = 0;
     double avg_rank = 0;
-    for (uint32_t subset = 1; subset < full_mask; subset++) {
+    GF2N_matrix submatrix(n_vertices, n_vertices, 0u);
+    for (uint32_t subset = 0; subset <= full_mask; subset++) {
         // Invert subset as a mask to get connections to non-active bits
         inv_subset = subset ^ full_mask;
         subset_size = std::popcount(subset);
         // Submatrix with the connections from subset to its complement
-        GF2N_matrix submatrix(subset_size, n_vertices - subset_size, 0u);
         leading_pos = 0;
         shifted_subset = subset;
+        submatrix.set_zero();
         for (uint32_t j = 0; j < subset_size; j++) {
             // Find where the jth active bit in subset is
-            while (!(shifted_subset & 1)) {
-                shifted_subset = shifted_subset >> 1;
-                leading_pos += 1;
-            }
+            trailing_zeros = std::countr_zero(shifted_subset);
+            shifted_subset >>= trailing_zeros + 1;
+            leading_pos += trailing_zeros;
             // Next row corresponds to the connections of the jth active bit with all non-active bits, in contiguous low bits
             submatrix[j] = _pext_u32(adj[leading_pos], inv_subset);
+            leading_pos += 1;
         }
         current_rank = submatrix.rank();
         min_rank = std::min(min_rank, current_rank);
         max_rank = std::max(max_rank, current_rank);
         avg_rank += current_rank;
     }
-    return std::tuple(min_rank, max_rank, avg_rank / (full_mask - 1));
+    return std::tuple(min_rank, max_rank, avg_rank / powerset_size);
 }
 
 // Returns the rank-width of this. To be implemented
