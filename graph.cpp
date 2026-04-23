@@ -385,7 +385,7 @@ std::tuple<unsigned int, unsigned int, double> simple_graph::cut_ranks() const {
             submatrix[j] = _pext_u32(adj[leading_pos], inv_subset);
             leading_pos += 1;
         }
-        current_rank = submatrix.rank();
+        current_rank = submatrix.rank_in_place();
         min_rank = std::min(min_rank, current_rank);
         max_rank = std::max(max_rank, current_rank);
         avg_rank += current_rank;

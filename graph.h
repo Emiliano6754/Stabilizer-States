@@ -120,9 +120,9 @@ private:
     GF2N_matrix adj;
 };
 
-// Loops over all graphs with n_vertices nodes, parsing them as a simple_graph and executes a particular function acting on it and the graph number
+// Loops over all connected graphs with n_vertices nodes, parsing them as a simple_graph and executes a particular function acting on it and the graph number
 template<typename LoopFunc> 
-void for_all_graphs(const unsigned int &n_vertices, LoopFunc operate_graph) {
+void for_all_connected_graphs(const unsigned int &n_vertices, LoopFunc operate_graph) {
     const std::filesystem::path cwd = std::filesystem::current_path();
     std::string graphs_suffix = std::to_string(n_vertices) + ".txt";
     std::ifstream input_file(cwd.string()+"/data/graphs/"+graphs_suffix,std::ifstream::in);
@@ -141,6 +141,30 @@ void for_all_graphs(const unsigned int &n_vertices, LoopFunc operate_graph) {
     } else {
         std::cout << "Could not parse graphs" << std::endl;
     }
+}
+
+// Loops over all (not necessarily connected) graphs with n_vertices nodes, parsing them as a simple_graph and executes a particular function acting on it and the graph number
+template<typename LoopFunc> 
+void for_all_graphs(const unsigned int &n_vertices, LoopFunc operate_graph) {
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string line;
+    unsigned int graph_num = 1;
+    simple_graph graph(n_vertices, false);
+    for (int con_vertices = 0; con_vertices <= n_vertices; con_vertices++) {
+        std::ifstream input_file(cwd.string()+"/data/graphs/"+std::to_string(con_vertices)+".txt",std::ifstream::in);
+        if (input_file.is_open()) {
+            while (std::getline(input_file, line)) {
+                graph.parse_graph_from_line(line);
+                
+                operate_graph(graph, con_vertices, graph_num);
+    
+                graph_num++;
+            }
+        } else {
+            std::cout << "Could not parse graphs" << std::endl;
+        }
+    }
+    
 }
 
 void calc_save_all_graph_properties();
