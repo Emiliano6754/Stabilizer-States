@@ -138,7 +138,7 @@ void graph_state::compute_kravchuk_symQ() {
     validate_characteristic();
     kravchuk_symQ.set_zero();
     static std::vector<kravchuk_exp> gmnk = get_all_gmnk(n_qubits);
-    std::vector<double> sqrt3_buffer = cached_power_buffer(1.0 / SQRT3, n_qubits);
+    std::vector<double> const& sqrt3_buffer = cached_power_buffer(1.0 / SQRT3, n_qubits);
     double norm = 1.0 / (1 << n_qubits);
     // p is the last index so that it runs faster, for cache efficiency
     sym_space_loop(n_qubits, [&](int const &r, int const &q, int const &p) {
@@ -159,7 +159,7 @@ void graph_state::compute_symQ() {
 void graph_state::compute_Qfunc() {
     Qfunc.resize(state_size, state_size);
     Qfunc.setZero();
-    std::vector<double> sqrt3_buffer = cached_power_buffer(1.0 / SQRT3, n_qubits);
+    std::vector<double> const& sqrt3_buffer = cached_power_buffer(1.0 / SQRT3, n_qubits);
 
     auto start = std::chrono::high_resolution_clock::now();
     #pragma omp parallel
