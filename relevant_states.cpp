@@ -8,24 +8,9 @@
 #include<displaced_Qfunc.h>
 #include<Qfunc.h>
 #include<sym_space.h>
+#include<discrete_math.h>
 
 # define M_PI           3.14159265358979323846  /* pi */
-
-static void get_unsignedint(unsigned int &parsed_input) {
-    std::string input = "";
-    std::cin >> input;
-    try {
-        unsigned long u = std::stoul(input);
-        if (u > std::numeric_limits<unsigned int>::max())
-            throw std::out_of_range(input);
-
-        parsed_input = u;
-    } catch (const std::invalid_argument& e) {
-        std::cout << "Input could not be parsed: " << e.what() << std::endl;
-    } catch (const std::out_of_range& e) {
-        std::cout << "Input out of range: " << e.what() << std::endl;
-    }
-}
 
 void max_coherent_state(const unsigned int &n_qubits, const unsigned int &qubitstate_size, const double &theta, const double &phi, double &max_G_distance, double &max_R_distance, std::tuple<unsigned int, unsigned int, unsigned int> &max_G_parameters, std::tuple<unsigned int, unsigned int, unsigned int> &max_R_parameters, const std::string &filename) {
     Eigen::VectorXcd coherent_state = su2_coherent_state(n_qubits, qubitstate_size, theta, phi);
@@ -33,10 +18,8 @@ void max_coherent_state(const unsigned int &n_qubits, const unsigned int &qubits
 }
 
 void max_interesting_states() {
-    unsigned int n_qubits;
-    std::cout << "Enter the number of qubits" << std::endl;
-    get_unsignedint(n_qubits);
-    const unsigned int qubitstate_size = 1 << n_qubits;
+    unsigned int const n_qubits = ask_unsigned_int("Enter the number of qubits");
+    unsigned int const qubitstate_size = 1 << n_qubits;
 
     const std::filesystem::path cwd = std::filesystem::current_path();
     std::string save_folder = cwd.string()+"/data/clif_dist/";
@@ -128,10 +111,8 @@ void expand_coherent_state(const unsigned int &n_qubits, const unsigned int &qub
 }
 
 void expand_interesting_states() {
-    unsigned int n_qubits;
-    std::cout << "Enter the number of qubits" << std::endl;
-    get_unsignedint(n_qubits);
-    const unsigned int qubitstate_size = 1 << n_qubits;
+    unsigned int const n_qubits = ask_unsigned_int("Enter the number of qubits");
+    unsigned int const qubitstate_size = 1 << n_qubits;
 
     const std::filesystem::path cwd = std::filesystem::current_path();
     std::string save_folder = cwd.string()+"/data/clif_dist/";
