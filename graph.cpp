@@ -310,8 +310,8 @@ void calc_save_all_graph_properties() {
     }
 }
 
-// Prompts for a type of graph, the number of vertices and returns it as a simple_graph and a suffix for filenames to indicate its type
-simple_graph generate_selected_graph(unsigned int const &n_qubits, std::string &filename) {
+// Prompts for a type of graph, the number of vertices and returns it as a simple_graph and a suffix indicating graph_type for filenames
+simple_graph generate_selected_graph(unsigned int const &n_qubits, std::string &graph_type) {
     const unsigned int n_vertices = ask_unsigned_int("Enter the number of qubits");
     simple_graph graph(n_vertices, 0);
     bool selected = false;
@@ -321,30 +321,29 @@ simple_graph generate_selected_graph(unsigned int const &n_qubits, std::string &
         std::cin >> input;
         if (input == "mc" || input == "m") {
             graph.add_all_edges();
-            filename = "mc_q" + std::to_string(n_vertices)+".txt";
+            graph_type = "mc";
             selected = true;
         } else if (input == "cc" || input == "c") {
             graph.add_cyclic_edges();
-            filename = "cc_q" + std::to_string(n_vertices)+".txt";
+            graph_type = "cc";
             selected = true;
         } else if (input == "ac" || input == "a") {
             graph.add_all_edges();
             graph.add_cyclic_edges();
-            filename = "ac_q" + std::to_string(n_vertices)+".txt";
+            graph_type = "ac";
             selected = true;
         } else if (input == "dc" || input == "d") {
-            filename = "dc_q" + std::to_string(n_vertices)+".txt";
+            graph_type = "dc";
             selected = true;
         } else if (input == "gn" || input == "g") {
             unsigned int graph_num = ask_unsigned_int("Enter the graph number");
-            filename = "q" + std::to_string(n_vertices) + "_" + std::to_string(graph_num) + ".txt";
+            graph_type = std::to_string(graph_num);
             graph.parse_graph_from_edge_list(graph_num);
             selected = true;
         } else if (input == "ed" || input == "e") {
             graph.add_manual_edges();
             std::cout << "Enter the suffix for savefile names, without the type or the number of vertices" << std::endl;
-            std::cin >> filename;
-            filename.append("_q"+std::to_string(n_vertices)+".txt");
+            std::cin >> graph_type;
             selected = true;
         }
     }

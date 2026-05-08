@@ -221,7 +221,7 @@ void calc_save_graph_state_props() {
                 for_all_graph_states(n_qubits, connected, [&](graph_state &state, unsigned int const &graph_num) {
                     save_state_props(state, filepath + std::to_string(graph_num), save_characteristic, save_kravchuk, save_symQ, save_Qfunc);
                     distances = state.get_max_distances();
-                    distances_file << distances.first << ", " << distances.second << "/n";
+                    distances_file << distances.first << ", " << distances.second << "\n";
                 });
             } else {
                 std::cout << "Could not save distances in " << distances_filename << std::endl;
@@ -234,17 +234,17 @@ void calc_save_graph_state_props() {
         }
     } else {
         unsigned int n_qubits = 0;
-        std::string filename;
-        simple_graph selected_graph = generate_selected_graph(n_qubits, filename);
+        std::string graph_type;
+        simple_graph selected_graph = generate_selected_graph(n_qubits, graph_type);
         graph_state state(selected_graph);
-        save_state_props(state, filename, save_characteristic, save_kravchuk, save_symQ, save_Qfunc);
+        save_state_props(state, graph_type, save_characteristic, save_kravchuk, save_symQ, save_Qfunc);
         if(maximize_distances) {
             const std::filesystem::path cwd = std::filesystem::current_path();
-            std::string distances_filename = "/data/distances/"+filename;
+            std::string distances_filename = "/data/distances/"+graph_type + "_q" + std::to_string(n_qubits) + ".txt";
             std::ofstream distances_file(cwd.string()+distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
             if (distances_file.is_open()) {
                 std::pair<double, double> distances = state.get_max_distances();
-                distances_file << distances.first << ", " << distances.second << "/n";
+                distances_file << distances.first << ", " << distances.second << "\n";
             } else {
                 std::cout << "Could not save distances in " << distances_filename << std::endl;
                 return;
