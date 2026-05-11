@@ -150,8 +150,7 @@ void graph_state::compute_kravchuk_symQ() {
 // Computes the symQ, setting valid_symQ to true. Automatically removes negative values that come from numeric error with the kravchuk expansion
 void graph_state::compute_symQ() {
     validate_kravchuk_symQ();
-    symQ = kravchuk_symQ.as_binom_tensor();
-    symQ.unaryExpr(negatives_to_zero);
+    symQ = kravchuk_symQ.as_binom_tensor().unaryExpr(negatives_to_zero);
     valid_symQ = true;
 }
 

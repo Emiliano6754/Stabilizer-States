@@ -110,6 +110,89 @@ void expand_coherent_state(const unsigned int &n_qubits, const unsigned int &qub
     get_state_distances_Kravchuk(n_qubits, qubitstate_size, coherent_state, prefix, G_distance, R_distance);
 }
 
+void direct_distance_interesting_states() {
+    unsigned int n_qubits = ask_unsigned_int("Enter the number of qubits");
+    const unsigned int qubitstate_size = 1 << n_qubits;
+
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string save_folder = cwd.string()+"/data/clif_dist/";
+    std::string max_G_distances_filename = "states_direct_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_R_distances_filename = "states_direct_R_q" + std::to_string(n_qubits) + ".txt";
+    std::ofstream max_G_distances_file(save_folder + max_G_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_R_distances_file(save_folder + max_R_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+
+    double G_distance, R_distance;
+    std::tuple<unsigned int, unsigned int, unsigned int> max_G_parameters, max_R_parameters;
+    auto start = std::chrono::high_resolution_clock::now();
+    if (max_G_distances_file.is_open() && max_R_distances_file.is_open()) {
+        const Eigen::Tensor<double, 3> Rmnk = get_Rmnk(n_qubits);
+        double norm_const = qubitstate_size * std::sqrt(qubitstate_size);
+        Eigen::VectorXcd complex_state = su2_coherent_state(n_qubits, qubitstate_size, M_PI/2, 0);
+        Eigen::MatrixXd Qfunc = pure_Qfunc_from_operational(n_qubits, qubitstate_size, complex_state);
+        Eigen::Tensor<double, 3> sym_Qfunc = get_symQ(n_qubits, qubitstate_size, Qfunc);
+        Eigen::Tensor<double, 3> Gfunc = get_Gfunc(n_qubits, qubitstate_size, sym_Qfunc);
+        Eigen::Tensor<double, 0> res;
+        res = (Gfunc * sym_Qfunc).sqrt().sum();
+        G_distance = 1 - (res(0) / static_cast<double>(qubitstate_size));
+        res = (Rmnk * sym_Qfunc).sqrt().sum();
+        R_distance = 1 - (res(0) / norm_const);
+        max_G_distances_file << G_distance << "\n";
+        max_R_distances_file << R_distance << "\n";
+        
+        Eigen::VectorXd state = GHZ_state(n_qubits);
+        Qfunc = pure_Qfunc_from_operational(n_qubits, qubitstate_size, state);
+        sym_Qfunc = get_symQ(n_qubits, qubitstate_size, Qfunc);
+        Gfunc = get_Gfunc(n_qubits, qubitstate_size, sym_Qfunc);
+        res = (Gfunc * sym_Qfunc).sqrt().sum();
+        G_distance = 1 - (res(0) / static_cast<double>(qubitstate_size));
+        res = (Rmnk * sym_Qfunc).sqrt().sum();
+        R_distance = 1 - (res(0) / norm_const);
+        max_G_distances_file << G_distance << "\n";
+        max_R_distances_file << R_distance << "\n";
+        
+        state = cluster_state(n_qubits, qubitstate_size);
+        Qfunc = pure_Qfunc_from_operational(n_qubits, qubitstate_size, state);
+        sym_Qfunc = get_symQ(n_qubits, qubitstate_size, Qfunc);
+        Gfunc = get_Gfunc(n_qubits, qubitstate_size, sym_Qfunc);
+        res = (Gfunc * sym_Qfunc).sqrt().sum();
+        G_distance = 1 - (res(0) / static_cast<double>(qubitstate_size));
+        res = (Rmnk * sym_Qfunc).sqrt().sum();
+        R_distance = 1 - (res(0) / norm_const);
+        max_G_distances_file << G_distance << "\n";
+        max_R_distances_file << R_distance << "\n";
+        
+        state = singlet_state(n_qubits);
+        Qfunc = pure_Qfunc_from_operational(n_qubits, qubitstate_size, state);
+        sym_Qfunc = get_symQ(n_qubits, qubitstate_size, Qfunc);
+        Gfunc = get_Gfunc(n_qubits, qubitstate_size, sym_Qfunc);
+        res = (Gfunc * sym_Qfunc).sqrt().sum();
+        G_distance = 1 - (res(0) / static_cast<double>(qubitstate_size));
+        res = (Rmnk * sym_Qfunc).sqrt().sum();
+        R_distance = 1 - (res(0) / norm_const);
+        max_G_distances_file << G_distance << "\n";
+        max_R_distances_file << R_distance << "\n";
+        
+        state = W_state(n_qubits, qubitstate_size);
+        Qfunc = pure_Qfunc_from_operational(n_qubits, qubitstate_size, state);
+        sym_Qfunc = get_symQ(n_qubits, qubitstate_size, Qfunc);
+        Gfunc = get_Gfunc(n_qubits, qubitstate_size, sym_Qfunc);
+        res = (Gfunc * sym_Qfunc).sqrt().sum();
+        G_distance = 1 - (res(0) / static_cast<double>(qubitstate_size));
+        res = (Rmnk * sym_Qfunc).sqrt().sum();
+        R_distance = 1 - (res(0) / norm_const);
+        max_G_distances_file << G_distance << "\n";
+        max_R_distances_file << R_distance << "\n";
+
+        max_G_distances_file.close();
+        max_R_distances_file.close();
+    } else {
+        std::cout << "Could not save distance results" << std::endl;
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> duration = end - start;
+    std::cout << "Calculating took " << duration.count() << "s" << std::endl;
+}
+
 void expand_interesting_states() {
     unsigned int const n_qubits = ask_unsigned_int("Enter the number of qubits");
     unsigned int const qubitstate_size = 1 << n_qubits;
