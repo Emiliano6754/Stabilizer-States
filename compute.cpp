@@ -589,8 +589,90 @@ void save_coherent_state_symQ() {
     }
 }
 
+void max_displaced_disconnected_graphs_distances() {
+    unsigned int const n_qubits = ask_unsigned_int("Enter the number of qubits");
+    unsigned int const qubitstate_size = 1 << n_qubits;
+
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string save_folder = cwd.string()+"/data/disp_dist/complete/";
+    std::string max_G_distances_filename = "max_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_R_distances_filename = "max_R_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_disp_G_filename = "max_disp_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_disp_R_filename = "max_disp_R_q" + std::to_string(n_qubits) + ".txt";
+    std::ofstream max_G_distances_file(save_folder + max_G_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_R_distances_file(save_folder + max_R_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_disp_G_file(save_folder + max_disp_G_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_disp_R_file(save_folder + max_disp_R_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+
+    double max_G_distance, max_R_distance;
+    std::tuple<unsigned int, unsigned int> max_G_parameters, max_R_parameters;
+
+
+    if (max_G_distances_file.is_open() && max_R_distances_file.is_open() && max_disp_G_file.is_open() && max_disp_R_file.is_open()) {
+        for_all_graph_states(
+            n_qubits, false, 
+            [&](graph_state &state, const unsigned int &graph_num) {
+                max_displaced_distances(n_qubits, qubitstate_size, state.get_Qfunc(), state.get_symQ(), max_G_distance, max_R_distance, max_G_parameters, max_R_parameters);
+                max_G_distances_file << max_G_distance << "\n";
+                max_R_distances_file << max_R_distance << "\n";
+                max_disp_G_file << std::get<0>(max_G_parameters) << ", " << std::get<1>(max_G_parameters) << "\n";
+                max_disp_R_file << std::get<0>(max_R_parameters) << ", " << std::get<1>(max_R_parameters) << "\n";
+                std::cout << graph_num << "\n";
+            }
+        );
+        max_G_distances_file.close();
+        max_R_distances_file.close();
+        max_disp_G_file.close();
+        max_disp_R_file.close();
+
+    } else {
+        std::cout << "Could not save minmax results" << std::endl;
+    }
+}
+
+void max_clifford_disconnected_graphs_distances() {
+    unsigned int const n_qubits = ask_unsigned_int("Enter the number of qubits");
+    unsigned int const qubitstate_size = 1 << n_qubits;
+
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::string save_folder = cwd.string()+"/data/clif_dist/complete/";
+    std::string max_G_distances_filename = "max_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_R_distances_filename = "max_R_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_cliff_G_filename = "max_cliff_G_q" + std::to_string(n_qubits) + ".txt";
+    std::string max_cliff_R_filename = "max_cliff_R_q" + std::to_string(n_qubits) + ".txt";
+    std::ofstream max_G_distances_file(save_folder + max_G_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_R_distances_file(save_folder + max_R_distances_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_cliff_G_file(save_folder + max_cliff_G_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+    std::ofstream max_cliff_R_file(save_folder + max_cliff_R_filename,std::ofstream::out|std::ofstream::ate|std::ofstream::trunc);
+
+    double max_G_distance, max_R_distance;
+    std::tuple<unsigned int, unsigned int, unsigned int> max_G_parameters, max_R_parameters;
+
+
+    if (max_G_distances_file.is_open() && max_R_distances_file.is_open() && max_cliff_G_file.is_open() && max_cliff_R_file.is_open()) {
+        for_all_graph_states(
+            n_qubits, false, 
+            [&](graph_state &state, const unsigned int &graph_num) {
+                max_lClifford_distances(n_qubits, qubitstate_size, state.get_Qfunc(), state.get_symQ(), max_G_distance, max_R_distance, max_G_parameters, max_R_parameters);
+                max_G_distances_file << max_G_distance << "\n";
+                max_R_distances_file << max_R_distance << "\n";
+                max_cliff_G_file << std::get<0>(max_G_parameters) << ", " << std::get<1>(max_G_parameters) << ", " << std::get<2>(max_G_parameters) << "\n";
+                max_cliff_R_file << std::get<0>(max_R_parameters) << ", " << std::get<1>(max_R_parameters) << ", " << std::get<2>(max_R_parameters) << "\n";
+                std::cout << graph_num << "\n";
+            }
+        );
+        max_G_distances_file.close();
+        max_R_distances_file.close();
+        max_cliff_G_file.close();
+        max_cliff_R_file.close();
+
+    } else {
+        std::cout << "Could not save minmax results" << std::endl;
+    }
+}
+
 int main() {
-    calc_save_graph_state_props();
+    max_clifford_disconnected_graphs_distances();
 
     return 0;
 }

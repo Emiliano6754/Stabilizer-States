@@ -171,7 +171,7 @@ void graph_state::compute_Qfunc() {
                 coeff = 0;
                 for (unsigned int eta = 0; eta < state_size; eta++) {
                     mult = this->graph * eta;
-                    coeff += sign(beta & mult, alpha & eta) * sqrt3_buffer[(std::popcount(mult) + std::popcount(eta) + std::popcount(mult ^ eta)) / 2];
+                    coeff += sign(std::popcount(beta & mult), std::popcount(alpha & eta)) * sqrt3_buffer[(std::popcount(mult) + std::popcount(eta) + std::popcount(mult ^ eta)) / 2];
                 }
                 Qfunc(alpha,beta) = coeff / state_size;
             }
@@ -179,7 +179,7 @@ void graph_state::compute_Qfunc() {
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
-    std::cout << "Calculating Qfunc took " << duration.count() << "s" << std::endl;
+    std::cout << "Calculating Qfunc took " << duration.count() << "s" << "\n";
     valid_Qfunc = true;
 }
 
